@@ -34,6 +34,7 @@
       </el-tabs>
       <div class="tip help">只有店主和员工能登录。第一次用先在小程序里绑定身份；账号密码在小程序「我的 → 管理后台 → 电脑网页后台」里设置。洗车店的员工在洗车小程序「我的 → 员工 → 电脑网页后台」里设置，或者用账号密码登录。</div>
     </div>
+    <a v-if="icp" class="icp" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">{{ icp }}</a>
   </div>
 </template>
 
@@ -41,7 +42,7 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { api, session, setToken, isMock, mockConfirmLogin } from '../api'
+import { api, session, setToken, isMock, mockConfirmLogin, config } from '../api'
 import { firstPage } from '../router'
 import logo from '../assets/logo.jpg'
 
@@ -63,6 +64,9 @@ const notice = computed(() => {
   if (route.query.expired) return '登录已过期，请重新登录'
   return ''
 })
+
+// 网站备案号（public/config.js 里的 icp），管局要求挂在网站首页底部并链到工信部备案网站
+const icp = String(config().icp || '').trim()
 
 const maskText = computed(() => (qr.loading ? '' : MASK[qr.status] || ''))
 
@@ -158,8 +162,10 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 16px;
   background: radial-gradient(circle at 50% 20%, #221d13, #0b0b0b 60%);
 }
 .box {
@@ -223,4 +229,10 @@ onBeforeUnmount(() => {
 .submit { width: 100%; margin-top: 8px; }
 .demo-account { margin-top: 10px; }
 .help { margin-top: 16px; }
+.icp {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  text-decoration: none;
+}
+.icp:hover { color: var(--el-color-primary); }
 </style>

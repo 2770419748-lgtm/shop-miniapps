@@ -55,6 +55,7 @@
 | 部署前备份 | `/www/backup/jinshan` | `/www/backup/jinshan-test` |
 | 微信支付 | 按 `config.json` | 关闭（配置里不填商户号，程序也不读） |
 | 订阅消息 | 发给顾客 | 只发给店主和店员（复制来的数据里有真顾客） |
+| 网址 | `https://pigkun.com`（`www` 也行） | `https://test.pigkun.com` |
 | 小程序 | 正式发布的版本连这里 | 开发者工具和体验版连这里 |
 
 测试版的 `config.json` 里多了 `"env": "test"`，程序看到它才按测试版跑：网页后台顶上有一条红色「测试版」，扫码登录出体验版的码，`/healthz` 返回 `"env":"test"`。部署和启动前会检查测试版配置：`env` 是 `test`、端口不是 3000、数据目录在测试版自己的目录里、没填商户号，不对就不动。
@@ -80,13 +81,13 @@ sudo bash /www/wwwroot/jinshan/jinshan-ops.sh install-test 139.155.154.80
 5. 建系统服务 `jinshan-test`。正式版现在的代码还不认得测试版的话先不启动，GitHub 第一次部署测试版时会自动启动。
 6. firewalld 放行 3001。
 
-正式版全程不重启、不改动。装完还要在**腾讯云轻量服务器控制台 →「防火墙」**添加规则放行 TCP `3001`，然后在 GitHub 部署一次测试版（Actions → 部署到服务器，选 `test`）。测试版的网页后台是 `http://139.155.154.80:3001/admin/`，账号和正式版一样（安装时复制过来的）。
+正式版全程不重启、不改动。装完还要在**腾讯云轻量服务器控制台 →「防火墙」**添加规则放行 TCP `3001`，然后在 GitHub 部署一次测试版（Actions → 部署到服务器，选 `test`）。测试版的网页后台当时是 `http://139.155.154.80:3001/admin/`（现在是 `https://test.pigkun.com/admin/`），账号和正式版一样（安装时复制过来的）。
 
 再运行一次 `install-test` 也没关系：已经有的代码、配置和数据都不动，只升级运维脚本、重写系统服务并重启测试版。以后改了 `jinshan-ops.sh`，也用这条命令升级，不用重新运行 `install`、不用换钥匙。
 
-### 备案下来以后
+### 域名
 
-测试版用 `test.pigkun.com`（主域名备案了，子域名不用另外备案）：宝塔反向代理 `test.pigkun.com` → `http://127.0.0.1:3001`，申请证书；测试版 `config.json` 的 `host` 改成 `"127.0.0.1"`、`publicUrl` 改成 `https://test.pigkun.com`，重启测试版；`miniprogram/config.js` 的 `testApiBase` 改成 `https://test.pigkun.com`，公众平台合法域名加上它；最后删掉两处防火墙里的 3001。
+测试版是 `https://test.pigkun.com`（主域名备案了，子域名不用另外备案），宝塔反向代理到本机 `127.0.0.1:3001`，见下面「HTTPS」。测试版网页后台：`https://test.pigkun.com/admin/`。
 
 ### 不要测试版了
 
@@ -114,14 +115,22 @@ sudo jinshan-ops test refresh-data   # 把正式版现在的数据重新复制�
 
 **从备份恢复数据库**：`systemctl stop jinshan` → 把 `server/data/jinshan.db` 改名留底，删掉旁边的 `jinshan.db-wal`、`jinshan.db-shm` → 把要恢复的备份（`/www/backup/jinshan/db/` 或 `server/data/backups/` 里的）复制成 `server/data/jinshan.db`，所有者改成 `www` → `systemctl start jinshan`。
 
-## 备案下来以后配 HTTPS
+## HTTPS（2026-11-02 已配好）
 
-程序不再归宝塔「Node 项目」管，域名和证书改用反向代理：
+pigkun.com 备案号 蜀ICP备2026066027号-2。程序不归宝塔「Node 项目」管，域名和证书用宝塔的反向代理：
 
-1. 宝塔「网站 → 反向代理 → 添加反代」（老版本是「网站 → 添加站点」建一个纯静态站点，再在站点设置里加反向代理）：域名填自己的域名，目标填 `http://127.0.0.1:3000`。
-2. 站点设置 →「SSL」→ Let's Encrypt 申请证书，打开「强制 HTTPS」。
-3. `server/config.json` 里 `host` 改回 `"127.0.0.1"`，`publicUrl` 填 `https://你的域名`，然后在 GitHub 运行一次「服务器运维 → restart」（或者终端里 `sudo jinshan-ops restart`）。
-4. 删掉腾讯云防火墙和宝塔「安全」里放行的 3000 端口。
+| | 正式版 | 测试版 |
+|---|---|---|
+| 解析（腾讯云 DNSPod） | `@`、`www` → 139.155.154.80 | `test` → 139.155.154.80 |
+| 宝塔「网站 → 反向代理」 | `pigkun.com`、`www.pigkun.com` → `http://127.0.0.1:3000` | `test.pigkun.com` → `http://127.0.0.1:3001` |
+| `config.json` | `host` `127.0.0.1`，`publicUrl` `https://pigkun.com` | `host` `127.0.0.1`，`publicUrl` `https://test.pigkun.com` |
+
+- 证书是宝塔申请的 Let's Encrypt（站点「设置 → SSL」），开了强制 HTTPS。宝塔「计划任务」里的「续签Let's Encrypt证书」每天检查，快到期自动续，不用管。
+- 程序只听本机，3000、3001 外面访问不了：腾讯云轻量防火墙和 firewalld 都只开 22、80、443、8888。改之前的配置留在 `server/config.json.bak-20261102-165517`。
+- 同一台服务器上还有 `xiyi.pigkun.com`（洗衣房，反代到 3100），不是本项目的，别动。
+- 网站首页（`https://pigkun.com` 会跳到网页后台登录页）最下面挂着备案号，链到工信部备案网站，这是管局要求的；备案号写在 `admin-web/public/config.js` 的 `icp`。
+
+以后要换域名：宝塔里加反代和证书 → 改两份 `config.json` 的 `publicUrl` → `sudo jinshan-ops restart`、`sudo jinshan-ops test restart` → 改 `miniprogram/config.js` → 公众平台服务器域名加上新域名。
 
 ## 换钥匙、停用自动部署
 

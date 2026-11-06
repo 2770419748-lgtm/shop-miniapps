@@ -2,5 +2,7 @@
 window.JINSHAN_CONFIG = {
   apiBase: '',
   shopName: '进山咖啡',
-  carwashName: '黑镜车体护理车房'
+  carwashName: '黑镜车体护理车房',
+  // 网站备案号，显示在登录页最下面并链到工信部备案网站（管局要求网站首页挂备案号）。换域名、换主体时跟着改，留空就不显示
+  icp: '蜀ICP备2026066027号-2'
 }
