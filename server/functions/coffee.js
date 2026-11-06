@@ -25,6 +25,7 @@ const stars = require('./stars')
 const notify = require('./notify')
 const delivery = require('./delivery')
 const couriers = require('./couriers')
+const shipping = require('./shipping')
 const { publicAddress, createAddressBook } = require('./address-book')
 const DEMO_MENU = require('./coffee-demo')
 
@@ -514,6 +515,10 @@ async function markWechatPaid(order, paid) {
     .where({ _id: order._id, payStatus: 'unpaid' })
     .update({ data: { payStatus: 'paid', payMethod: 'wechat', awaitingPay: false, transactionId: paid.transactionId, paidAt: db.serverDate(), updatedAt: db.serverDate() } })
   if (res.stats.updated && order.status === 'cancelled') await refundOrder(Object.assign({}, order, { payStatus: 'paid', payMethod: 'wechat' }))
+  // 告诉微信这单给出去了（开了发货信息管理才会真的传）：外送是同城配送，其余是到店自提
+  if (res.stats.updated && order.status !== 'cancelled') {
+    await shipping.record({ type: order.mode === 'delivery' ? 'delivery' : 'pickup', paid, desc: shipping.describeItems('进山咖啡-取餐号' + order.pickupNo, order.items) })
+  }
   // 出餐以后才付的，付了就给星
   if (res.stats.updated) await creditStars(order._id)
   if (!res.stats.updated) {
@@ -1694,4 +1699,5 @@ exports.onPayNotify = onPayNotify
 exports.expireReservations = expireReservations
 exports.expireStars = expireStars
 exports.syncDeliveries = syncDeliveries
+exports.syncShipping = shipping.sync
 exports.onCourierNotify = onCourierNotify

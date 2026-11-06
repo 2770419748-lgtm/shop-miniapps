@@ -1,4 +1,4 @@
-// 调微信服务器的接口：小程序登录换 openid、拿 access_token、生成小程序码、订阅消息。
+// 调微信服务器的接口：小程序登录换 openid、拿 access_token、生成小程序码、订阅消息、上传发货信息。
 // 需要小程序的 AppID 和 AppSecret（公众平台「开发管理 → 开发设置」里拿），填在服务器配置文件里。
 const API = 'https://api.weixin.qq.com'
 // access_token 失效时微信返回的错误码，遇到就刷新一次再试
@@ -109,7 +109,19 @@ function createWechat({ appId, appSecret, fetch = globalThis.fetch }) {
     return true
   }
 
-  return { ready, accessToken, code2session, getUnlimited, getTemplateList, sendSubscribe }
+  // 小程序发货信息管理（见 functions/shipping.js）：公众平台给这个小程序开没开这项服务
+  async function isTradeManaged() {
+    const data = await call('POST', '/wxa/sec/order/is_trade_managed', { appid: appId })
+    return !!data.is_trade_managed
+  }
+
+  // 上传一笔微信支付的发货信息
+  async function uploadShipping(body) {
+    await call('POST', '/wxa/sec/order/upload_shipping_info', body)
+    return true
+  }
+
+  return { ready, accessToken, code2session, getUnlimited, getTemplateList, sendSubscribe, isTradeManaged, uploadShipping }
 }
 
 module.exports = { createWechat, wxError }

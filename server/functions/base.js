@@ -56,7 +56,8 @@ const COLLECTIONS = [
   'cw_card_logs',
   'cw_card_orders',
   'cw_link_rules',
-  'star_logs'
+  'star_logs',
+  'ship_queue'
 ]
 
 // 电脑网页后台的登录有效期

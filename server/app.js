@@ -368,11 +368,12 @@ function main() {
   console.log(carwash.pay.ready() ? '洗车微信支付已配置，商户号 ' + config.carwash.pay.mchId : '洗车微信支付没配置')
   console.log(intracity.ready() ? '微信同城配送已配置' + (couriers.wechat.sandbox ? '（沙箱，只叫测试单）' : '') : '微信同城配送没配置（外送只能店员自己送）')
   scheduleBackups(db, config.dataDir)
-  // 每分钟：取消超时没付款的预约单、外送单，查一次第三方配送的进度，提醒一次快到期的借书；
+  // 每分钟：取消超时没付款的预约单、外送单，查一次第三方配送的进度，上传微信支付的发货信息，提醒一次快到期的借书；
   // 洗车单超时没付款的取消、没确认完成的自动完成；集星设了有效期时每小时清一次过期的星星
   setInterval(() => {
     modules.coffee.expireReservations().catch((e) => console.error('取消超时预约单失败', e))
     modules.coffee.syncDeliveries().catch((e) => console.error('查配送进度失败', e))
+    modules.coffee.syncShipping().catch((e) => console.error('上传发货信息失败', e))
     modules.coffee.expireStars().catch((e) => console.error('清过期星星失败', e))
     modules.book.remindDue().catch((e) => console.error('借书到期提醒失败', e))
     modules.carwash.runTimers().catch((e) => console.error('洗车定时任务失败', e))

@@ -15,6 +15,8 @@ const state = {
   sent: [],
   sendError: 0,
   cw: { payReady: true, payOrders: {}, refunds: [] },
+  // 发货信息管理：managed 是小程序开没开这项服务，uploads 是传上去的发货信息，uploadError 不为空时上传报这个错误码
+  shipping: { managed: true, managedError: false, uploads: [], uploadError: 0 },
   // 微信同城配送：orders 按门店订单号记叫过的骑手单；calls 是调过的接口；fail 不为空时下一个接口报这个错误码
   courier: { ready: true, sandbox: false, orders: {}, calls: [], stores: [], fail: 0, fee: 850, deductFee: 0, balance: [] }
 }
@@ -52,6 +54,19 @@ const wechat = {
     }
     state.sent.push(params)
     return true
+  },
+  async isTradeManaged() {
+    if (state.shipping.managedError) throw new Error('errCode: -1 | errMsg: system error')
+    return state.shipping.managed
+  },
+  async uploadShipping(body) {
+    if (state.shipping.uploadError) {
+      const e = new Error('errCode: ' + state.shipping.uploadError + ' | errMsg: fail')
+      e.errCode = state.shipping.uploadError
+      throw e
+    }
+    state.shipping.uploads.push(body)
+    return true
   }
 }
 
@@ -73,7 +88,7 @@ function makePay(s, mchId) {
     async query(outTradeNo) {
       const o = s.payOrders[outTradeNo]
       if (!o) return null
-      return { tradeState: o.paid ? 'SUCCESS' : 'NOTPAY', transactionId: 'tx' + outTradeNo, total: o.params.total }
+      return { tradeState: o.paid ? 'SUCCESS' : 'NOTPAY', transactionId: 'tx' + outTradeNo, total: o.params.total, payerOpenid: o.params.openid }
     },
     async refund(params) {
       s.refunds.push(params)
