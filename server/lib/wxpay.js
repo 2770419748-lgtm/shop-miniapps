@@ -75,11 +75,16 @@ function createWxpay(options) {
     return { timeStamp, nonceStr, package: pkg, signType: 'RSA', paySign: sign(o.appId + '\n' + timeStamp + '\n' + nonceStr + '\n' + pkg + '\n') }
   }
 
-  // 查单：返回 { tradeState, transactionId, total }；单子不存在返回 null
+  // 查单：返回 { tradeState, transactionId, total, payerOpenid }；单子不存在返回 null
   async function query(outTradeNo) {
     try {
       const data = await request('GET', '/v3/pay/transactions/out-trade-no/' + encodeURIComponent(outTradeNo) + '?mchid=' + encodeURIComponent(o.mchId))
-      return { tradeState: data.trade_state, transactionId: data.transaction_id || '', total: data.amount ? data.amount.total : 0 }
+      return {
+        tradeState: data.trade_state,
+        transactionId: data.transaction_id || '',
+        total: data.amount ? data.amount.total : 0,
+        payerOpenid: (data.payer && data.payer.openid) || ''
+      }
     } catch (e) {
       if (e.status === 404 || e.wxCode === 'ORDER_NOT_EXIST') return null
       throw e

@@ -17,6 +17,7 @@ const {
 const wallet = require('./wallet')
 const stars = require('./stars')
 const pay = require('./pay')
+const shipping = require('./shipping')
 const { yuan, publicPlan, createPlanStore } = require('./plans')
 
 const db = cloud.database()
@@ -81,6 +82,8 @@ async function markRechargePaid(recharge, paid) {
       return res.stats.updated > 0
     }
   })
+  // 告诉微信这单给出去了：储值是虚拟商品（同一笔记过就不会再记）
+  await shipping.record({ type: 'virtual', paid, desc: '进山会员-' + recharge.title })
   return true
 }
 

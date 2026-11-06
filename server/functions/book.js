@@ -20,6 +20,7 @@ const DEMO = require('./book-demo')
 const pay = require('./pay')
 const wallet = require('./wallet')
 const notify = require('./notify')
+const shipping = require('./shipping')
 
 const db = cloud.database()
 const _ = db.command
@@ -190,7 +191,11 @@ async function markRentalWechatPaid(rental, paid) {
     return true
   }
   if (rental.status === 'cancelled') await refundRental(Object.assign({}, rental, { payStatus: 'paid' }))
-  else await issueVouchers(rental, '')
+  else {
+    await issueVouchers(rental, '')
+    // 告诉微信这单给出去了：到吧台取书，算到店自提
+    await shipping.record({ type: 'pickup', paid, desc: '进山书屋-借阅《' + rental.bookTitle + '》' })
+  }
   return true
 }
 
@@ -205,7 +210,9 @@ async function markOvertimeWechatPaid(rental, paid) {
   if (!res.stats.updated) {
     const now = await findOne('book_rentals', { _id: rental._id })
     if (now && now.overtimePayMethod === 'balance') await refundDuplicate(now, overtimeTradeNo(rental), paid, 'overtimeDupRefunded')
+    return true
   }
+  await shipping.record({ type: 'virtual', paid, desc: '进山书屋-超时费《' + rental.bookTitle + '》' })
   return true
 }
 

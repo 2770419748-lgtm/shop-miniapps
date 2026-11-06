@@ -55,12 +55,13 @@ async function unifiedOrder(settings, { body, outTradeNo, totalFee, openid, noti
   }
 }
 
-// 向微信查单：真的付了才返回 { transactionId, totalFee }，否则返回 null
+// 向微信查单：真的付了才返回 { transactionId, totalFee, payerOpenid }，否则返回 null。
+// payerOpenid 是付款人在这个小程序里的 openid，上传发货信息要用（见 shipping.js）
 async function queryPaid(outTradeNo, shop) {
   if (!payReady(shop) || !outTradeNo) return null
   try {
     const res = await cloud.payOf(shop).query(outTradeNo)
-    if (res && res.tradeState === 'SUCCESS') return { transactionId: res.transactionId || '', totalFee: Number(res.total) }
+    if (res && res.tradeState === 'SUCCESS') return { transactionId: res.transactionId || '', totalFee: Number(res.total), payerOpenid: res.payerOpenid || '' }
   } catch (e) {
     console.error('wxpay query failed', outTradeNo, e)
   }

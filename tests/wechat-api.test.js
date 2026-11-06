@@ -66,6 +66,24 @@ test('订阅消息：读我的模板、发消息；token 失效时刷新一次�
   await assert.rejects(wx.sendSubscribe(msg), (e) => e.errCode === 43101)
 })
 
+test('发货信息管理：问开没开、上传发货信息；微信的错误码带出来', async () => {
+  const fetch = fakeFetch([
+    { body: { access_token: 'T1', expires_in: 7200 } },
+    { body: { errcode: 0, errmsg: 'ok', is_trade_managed: true } },
+    { body: { errcode: 0, errmsg: 'ok' } },
+    { body: { errcode: 10060002, errmsg: 'already shipped' } }
+  ])
+  const wx = createWechat({ appId: 'wxapp', appSecret: 'secret', fetch })
+  assert.equal(await wx.isTradeManaged(), true)
+  assert.match(fetch.calls[1].url, /\/wxa\/sec\/order\/is_trade_managed\?access_token=T1$/)
+  assert.deepEqual(JSON.parse(fetch.calls[1].init.body), { appid: 'wxapp' })
+  const body = { order_key: { order_number_type: 2, transaction_id: 'tx1' }, logistics_type: 4, delivery_mode: 1, shipping_list: [{ item_desc: '手冲' }], upload_time: '2026-11-06T18:00:00+08:00', payer: { openid: 'o1' } }
+  assert.equal(await wx.uploadShipping(body), true)
+  assert.match(fetch.calls[2].url, /\/wxa\/sec\/order\/upload_shipping_info\?access_token=T1$/)
+  assert.deepEqual(JSON.parse(fetch.calls[2].init.body), body)
+  await assert.rejects(wx.uploadShipping(body), (e) => e.errCode === 10060002)
+})
+
 const keys = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
 const merchantKey = keys.privateKey.export({ type: 'pkcs8', format: 'pem' })
 const merchantPub = keys.publicKey
@@ -126,13 +144,13 @@ test('预约单下单时带上最晚付款时间（北京时间）', async () =>
 
 test('查单、退款；查不到的单返回 null，其他错误带上微信的说明', async () => {
   const fetch = fakeFetch([
-    { body: { trade_state: 'SUCCESS', transaction_id: 'tx1', amount: { total: 3200, payer_total: 3200 } } },
+    { body: { trade_state: 'SUCCESS', transaction_id: 'tx1', amount: { total: 3200, payer_total: 3200 }, payer: { openid: 'oPayer' } } },
     { status: 404, body: { code: 'ORDER_NOT_EXIST', message: '订单不存在' } },
     { body: { status: 'PROCESSING', refund_id: 'rf1' } },
     { status: 403, body: { code: 'NOT_ENOUGH', message: '基本账户余额不足' } }
   ])
   const pay = payWith(fetch)
-  assert.deepEqual(await pay.query('JS1'), { tradeState: 'SUCCESS', transactionId: 'tx1', total: 3200 })
+  assert.deepEqual(await pay.query('JS1'), { tradeState: 'SUCCESS', transactionId: 'tx1', total: 3200, payerOpenid: 'oPayer' })
   assert.equal(fetch.calls[0].init.method, 'GET')
   assert.equal(fetch.calls[0].url, 'https://api.mch.weixin.qq.com/v3/pay/transactions/out-trade-no/JS1?mchid=1900000109')
   assert.equal(await pay.query('JS2'), null)
