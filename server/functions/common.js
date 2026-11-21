@@ -1,5 +1,5 @@
 // 公共模块：登录、店主绑定、员工邀请和权限管理、店铺设置、消息通知设置、电脑网页后台登录、顾客首页（轮播、营业时间、可领的券、会员、集星）。
-// 首页轮播存在 banners 集合；首页要展示商品、书、代金券和会员储值，所以这里会只读 coffee_products、book_books、coffee_coupons、
+// 首页轮播存在 banners 集合；首页要展示商品、书、代金券和会员储值（含充值送的券），所以这里会只读 coffee_products、book_books、coffee_coupons、
 // member_plans 和自己的 members 记录。
 const crypto = require('crypto')
 const { promisify } = require('util')
@@ -22,6 +22,7 @@ const wallet = require('./wallet')
 const stars = require('./stars')
 const notify = require('./notify')
 const delivery = require('./delivery')
+const coupons = require('./coupons')
 
 const db = cloud.database()
 const _ = db.command
@@ -141,18 +142,19 @@ async function deleteUploads(list) {
   }
 }
 
-// 首页的会员卡：没开储值又没余额就不显示；promo 是第一个充值档位，比如「充 300 送 100」
+// 首页的会员卡：没开储值又没余额就不显示；promo 是第一个充值档位，比如「充 300 送 50，送基础饮品券 1 张」
 async function homeMember(settings, member) {
   const info = wallet.publicMember(member)
   if (!settings.enabled && !(info && (info.balance || info.isMember))) return null
   const plans = settings.enabled ? await safeGet(db.collection('member_plans').where({ enabled: true }).orderBy('sort', 'asc').limit(1)) : []
+  const gifts = plans[0] && (plans[0].gifts || []).length ? coupons.giftText(coupons.giftList(plans[0].gifts, (await coupons.templateMap(db)).byId)) : ''
   return {
     enabled: settings.enabled,
     balance: info ? info.balance : 0,
     isMember: info ? info.isMember : false,
     memberUntil: info ? info.memberUntil : '',
     freeCategories: settings.freeCategories,
-    promo: plans[0] ? plans[0].title + (plans[0].memberDays ? '，送 ' + plans[0].memberDays + ' 天会员' : '') : ''
+    promo: plans[0] ? plans[0].title + (plans[0].memberDays ? '，送 ' + plans[0].memberDays + ' 天会员' : '') + (gifts ? '，' + gifts : '') : ''
   }
 }
 
@@ -199,15 +201,15 @@ async function autoBanners() {
   return out
 }
 
-// 顾客还能领几种券：在领取中、没领完、自己还没领到上限的
+// 顾客还能领几种券：在领取中、没领完、自己还没领到上限的（只在充值时送的券不算，充值送到手的也不算已领）
 async function claimableCoupons(openid) {
   const [coupons, mine] = await Promise.all([
     safeGet(db.collection('coffee_coupons').where({ enabled: true }).limit(100)),
-    openid ? safeGet(db.collection('vouchers').where({ _openid: openid, type: 'cash' }).limit(500)) : []
+    openid ? safeGet(db.collection('vouchers').where({ _openid: openid, type: 'cash', source: 'coupon' }).limit(500)) : []
   ])
   const claimed = {}
   mine.forEach((v) => { claimed[v.couponId] = (claimed[v.couponId] || 0) + 1 })
-  return coupons.filter((c) => (!c.total || (c.claimed || 0) < c.total) && (claimed[c._id] || 0) < (c.perUser || 1)).length
+  return coupons.filter((c) => !c.giftOnly && (!c.total || (c.claimed || 0) < c.total) && (claimed[c._id] || 0) < (c.perUser || 1)).length
 }
 
 async function requireAnyStaff(openid) {

@@ -85,6 +85,10 @@
 .coupon-check {
   font-size: 36rpx;
 }
+.coupon-reason {
+  margin-top: 4rpx;
+  color: var(--danger);
+}
 .no-coupon {
   margin-top: 8rpx;
 }

@@ -42,12 +42,13 @@
         <view class="plan-bonus" wx:if="{{item.bonus}}">送 ¥{{f.yuan(item.bonus)}}</view>
         <view class="plan-bonus none" wx:else>到账 ¥{{f.yuan(item.price)}}</view>
         <view class="plan-days" wx:if="{{item.memberDays}}">送 {{item.memberDays}} 天会员</view>
+        <view class="plan-gift" wx:for="{{item.gifts}}" wx:for-item="g" wx:key="couponId">送{{g.title}} {{g.count}} 张</view>
         <view class="plan-desc" wx:if="{{item.desc}}">{{item.desc}}</view>
       </view>
     </view>
     <view class="card counter" wx:if="{{!payInfo.enabled}}">
       <view class="counter-title">到吧台充值</view>
-      <view class="muted">付 ¥{{f.yuan(plans[planIndex].price)}} 给店员，报会员号 <text class="gold">{{member.memberNo}}</text>，店员当场给你充上 ¥{{f.yuan(plans[planIndex].price + plans[planIndex].bonus)}}<text wx:if="{{plans[planIndex].memberDays}}">，再送 {{plans[planIndex].memberDays}} 天会员</text>。</view>
+      <view class="muted">付 ¥{{f.yuan(plans[planIndex].price)}} 给店员，报会员号 <text class="gold">{{member.memberNo}}</text>，店员当场给你充上 ¥{{f.yuan(plans[planIndex].price + plans[planIndex].bonus)}}<text wx:if="{{plans[planIndex].memberDays}}">，再送 {{plans[planIndex].memberDays}} 天会员</text><text wx:if="{{plans[planIndex].giftText}}">，{{plans[planIndex].giftText}}（充完自动放进「我的券」）</text>。</view>
     </view>
   </block>
   <view class="empty" wx:elif="{{!settings.enabled}}">店里暂时没开放充值</view>

@@ -1,6 +1,7 @@
 // 会员模块：会员中心、充值档位、在线充值（微信支付）、吧台代充、店主调整余额和星星、会员和流水查询。
 // 余额怎么加减见 wallet.js，星星见 stars.js；member_plans 是充值档位（增删改见 plans.js），member_recharges 是在线充值单。
-// 设置页要列出书的分类（会员免费看哪些），所以会只读 book_books。
+// 档位可以送代金券（gifts：[{ couponId, count }]），充值成功（在线付款或吧台代充）时往 vouchers 里发券，见 coupons.js。
+// 设置页要列出书的分类（会员免费看哪些）和代金券（选送哪种券），所以会只读 book_books、coffee_coupons。
 const cloud = require('../platform')
 const {
   COFFEE_ROLES,
@@ -17,6 +18,7 @@ const {
 const wallet = require('./wallet')
 const stars = require('./stars')
 const pay = require('./pay')
+const coupons = require('./coupons')
 const { yuan, publicPlan, createPlanStore } = require('./plans')
 
 const db = cloud.database()
@@ -50,6 +52,25 @@ function enabledPlans() {
   return plans.enabled()
 }
 
+// 顾客和店员看的档位：带上送哪些券（gifts：[{ couponId, title, amount, count }]）和一句话说明（giftText）
+async function plansWithGifts(list, admin) {
+  const { byId } = await coupons.templateMap(db)
+  return list.map((p) => {
+    const gifts = coupons.giftList(p.gifts, byId)
+    return Object.assign(admin ? Object.assign({}, p) : publicPlan(p), { gifts, giftText: coupons.giftText(gifts) })
+  })
+}
+
+// 充值到账后送券；送券出错不影响已经到账的钱，记日志并告诉店员
+async function sendGifts(openid, gifts, refNo) {
+  try {
+    return { gifts: await coupons.issueGifts(db, openid, gifts, refNo), giftError: '' }
+  } catch (e) {
+    console.error('充值送券失败', refNo, e)
+    return { gifts: [], giftError: '钱已经充上了，但券没送出去。请不要再充一次，截图告诉管理员处理。' }
+  }
+}
+
 function makeRechargeNo() {
   return 'JC' + cnStamp() + String(Math.floor(Math.random() * 10000)).padStart(4, '0')
 }
@@ -58,13 +79,13 @@ function staffName(staff) {
   return (staff && staff.name) || ''
 }
 
-// 微信支付成功：核对金额，把钱和会员天数加到账上；同一张充值单只会加一次
+// 微信支付成功：核对金额，把钱和会员天数加到账上，再送这一档的券；同一张充值单只会加一次、送一次
 async function markRechargePaid(recharge, paid) {
   if (!paid || paid.totalFee !== recharge.price) {
     if (paid) console.error('recharge amount mismatch', recharge.rechargeNo, paid.totalFee, recharge.price)
     return false
   }
-  await wallet.change(db, recharge._openid, recharge.price + recharge.bonus, {
+  const credited = await wallet.change(db, recharge._openid, recharge.price + recharge.bonus, {
     type: 'recharge',
     title: recharge.title,
     refType: 'recharge',
@@ -81,6 +102,10 @@ async function markRechargePaid(recharge, paid) {
       return res.stats.updated > 0
     }
   })
+  if (credited && (recharge.gifts || []).length) {
+    const sent = await sendGifts(recharge._openid, recharge.gifts, recharge.rechargeNo)
+    await col('member_recharges').doc(recharge._id).update({ data: { giftsSent: sent.gifts, giftError: sent.giftError } })
+  }
   return true
 }
 
@@ -130,7 +155,7 @@ const handlers = {
     return {
       member: wallet.publicMember(member),
       settings,
-      plans: settings.enabled ? plans.map(publicPlan) : [],
+      plans: settings.enabled ? await plansWithGifts(plans) : [],
       pay: pay.publicPay(paySettings)
     }
   },
@@ -159,6 +184,8 @@ const handlers = {
       price: plan.price,
       bonus: plan.bonus || 0,
       memberDays: plan.memberDays || 0,
+      // 送的券按下单时这一档的设置送
+      gifts: plan.gifts || [],
       payStatus: 'unpaid',
       day: cnDay(),
       createdAt: new Date(),
@@ -224,30 +251,34 @@ const handlers = {
       safeList(col('star_logs').where({ memberNo: m.memberNo }).orderBy('createdAt', 'desc').limit(50)),
       stars.readSettings(db)
     ])
-    // plans：吧台代充时能选的档位；starLogs：星星的变动
+    // plans：吧台代充时能选的档位（带送券）；starLogs：星星的变动
     return {
       member: adminView(m, starSettings),
       logs: logs.map((l) => wallet.publicLog(l, true)),
-      plans: plans.map(publicPlan),
+      plans: await plansWithGifts(plans),
       starLogs: starLogs.map((l) => stars.publicLog(l, true)),
       starSettings: { enabled: starSettings.enabled, need: starSettings.need }
     }
   },
 
-  // 吧台代充：顾客当面付钱（现金、收款码）后，按档位给他充上
+  // 吧台代充：顾客当面付钱（现金、收款码）后，按档位给他充上，再送这一档的券。
+  // 返回 gifts：送了哪些券 [{ title, count }]；giftError：钱充上了但券没送成时的提示
   async counterRecharge({ memberNo, planId }, openid) {
     const staff = await requireRole(db, openid, COFFEE_ROLES)
     const m = await wallet.findByNo(db, memberNo)
     const plan = await plans.usable(planId)
+    const refNo = makeRechargeNo()
     const res = await wallet.change(db, m._id, plan.price + (plan.bonus || 0), {
       type: 'counter',
       title: plan.title,
       refType: 'plan',
       refId: plan._id,
+      refNo,
       operator: openid,
       operatorName: staffName(staff)
     }, { principal: plan.price, bonus: plan.bonus || 0, memberDays: plan.memberDays || 0 })
-    return { balance: res.balance, memberUntil: res.memberUntil, memberNo: m.memberNo }
+    const sent = await sendGifts(m._id, plan.gifts, refNo)
+    return Object.assign({ balance: res.balance, memberUntil: res.memberUntil, memberNo: m.memberNo }, sent)
   },
 
   async setMemberRemark({ memberNo, remark }, openid) {
@@ -350,15 +381,32 @@ const handlers = {
 
   // ---------- 后台：储值设置和充值档位（店主） ----------
 
+  // coupons：能选来送的代金券（全部模板，giftOnly 的是只在充值时送的）
   async getMemberSettings(event, openid) {
     await requireRole(db, openid, ['owner'])
-    const [settings, list, categories, paySettings] = await Promise.all([
+    const [settings, list, categories, paySettings, templates, names] = await Promise.all([
       wallet.readSettings(db),
       plans.list(),
       bookCategories(),
-      pay.getSettings(db)
+      pay.getSettings(db),
+      coupons.templateMap(db),
+      coupons.loadNames(db)
     ])
-    return { settings, plans: list, categories, payEnabled: paySettings.payEnabled }
+    return {
+      settings,
+      plans: await plansWithGifts(list, true),
+      categories,
+      payEnabled: paySettings.payEnabled,
+      coupons: templates.list.map((c) => ({
+        _id: c._id,
+        title: c.title,
+        amount: c.amount,
+        minSpend: c.minSpend || 0,
+        validDays: c.validDays,
+        giftOnly: !!c.giftOnly,
+        scope: coupons.scopeText(c, names)
+      }))
+    }
   },
 
   async saveMemberSettings({ enabled, freeCategories, notice }, openid) {
@@ -374,9 +422,11 @@ const handlers = {
     return wallet.readSettings(db)
   },
 
+  // plan.gifts：[{ couponId, count }]；没传（旧版小程序后台）就不改原来的送券
   async savePlan({ plan }, openid) {
     await requireRole(db, openid, ['owner'])
-    return plans.save(plan)
+    const p = plan || {}
+    return plans.save(p, p.gifts === undefined ? null : { gifts: await coupons.cleanGifts(db, p.gifts) })
   },
 
   async setPlanFlags({ id, enabled }, openid) {

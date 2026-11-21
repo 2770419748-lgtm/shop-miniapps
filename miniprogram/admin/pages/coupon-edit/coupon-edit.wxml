@@ -1,4 +1,16 @@
+<wxs src="../../../utils/filters.wxs" module="f" />
+
 <view class="page" wx:if="{{ready}}">
+  <view class="section-title">怎么发</view>
+  <view class="card">
+    <view class="chips">
+      <view class="chip {{form.giftOnly ? '' : 'on'}}" data-gift="0" bindtap="pickGiftOnly">领券中心，顾客自己领</view>
+      <view class="chip {{form.giftOnly ? 'on' : ''}}" data-gift="1" bindtap="pickGiftOnly">只在充值时送</view>
+    </view>
+    <view class="faint small tip" wx:if="{{form.giftOnly}}">领券中心看不到这张券。到「储值设置」的充值档位里选它，顾客充值成功就自动送到「我的券」。</view>
+    <view class="faint small tip" wx:else>顾客在首页「领券中心」自己领。充值档位里也能选它来送。</view>
+  </view>
+
   <view class="card">
     <view class="field">
       <text class="field-label">减多少（元）</text>
@@ -14,33 +26,62 @@
     </view>
   </view>
 
+  <view class="section-title">能用在</view>
+  <view class="card">
+    <view class="chips">
+      <view class="chip {{form.scope === 'all' ? 'on' : ''}}" data-scope="all" bindtap="pickScope">全部商品</view>
+      <view class="chip {{form.scope === 'category' ? 'on' : ''}}" data-scope="category" bindtap="pickScope">指定分类</view>
+      <view class="chip {{form.scope === 'product' ? 'on' : ''}}" data-scope="product" bindtap="pickScope">指定商品</view>
+    </view>
+    <block wx:if="{{form.scope === 'category'}}">
+      <view class="faint small pick-head">点选能用的分类，可以选多个</view>
+      <view class="chips" wx:if="{{categories.length}}">
+        <view wx:for="{{categories}}" wx:key="_id" class="chip mini pick {{f.indexOf(form.categoryIds, item._id) !== -1 ? 'on' : ''}}" data-id="{{item._id}}" bindtap="toggleCategory">{{item.name}}</view>
+      </view>
+      <view class="faint small" wx:else>还没有商品分类，先到「商品分类」里加。</view>
+    </block>
+    <block wx:if="{{form.scope === 'product'}}">
+      <view class="faint small pick-head">点选能用的商品，可以选多个</view>
+      <block wx:for="{{productGroups}}" wx:key="id">
+        <view class="faint small group-name">{{item.name}}</view>
+        <view class="chips">
+          <view wx:for="{{item.products}}" wx:for-item="p" wx:key="_id" class="chip mini pick {{f.indexOf(form.productIds, p._id) !== -1 ? 'on' : ''}}" data-id="{{p._id}}" bindtap="toggleProduct">{{p.name}}</view>
+        </view>
+      </block>
+      <view class="faint small" wx:if="{{!productGroups.length}}">还没有商品，先到「商品管理」里加。</view>
+    </block>
+    <view class="faint small tip" wx:if="{{form.scope !== 'all'}}">只能抵这些商品的钱，门槛也只算这些商品。比如小食券选「小食」分类，只点咖啡时就用不上。</view>
+  </view>
+
   <view class="card">
     <view class="field">
       <text class="field-label">有效天数</text>
-      <input class="field-input" type="number" placeholder="领取当天算第 1 天" placeholder-class="placeholder" value="{{form.validDays}}" data-field="validDays" bindinput="onInput" />
+      <input class="field-input" type="number" placeholder="{{form.giftOnly ? '送出' : '领取'}}当天算第 1 天" placeholder-class="placeholder" value="{{form.validDays}}" data-field="validDays" bindinput="onInput" />
     </view>
-    <view class="field">
-      <text class="field-label">一共发几张</text>
-      <input class="field-input" type="number" placeholder="不填就是不限量" placeholder-class="placeholder" value="{{form.total}}" data-field="total" bindinput="onInput" />
-    </view>
-    <view class="field">
-      <text class="field-label">每人限领</text>
-      <view class="field-input">
-        <view class="stepper">
-          <view class="stepper-btn" data-delta="-1" bindtap="changePerUser">−</view>
-          <text class="stepper-num">{{form.perUser}}</text>
-          <view class="stepper-btn plus" data-delta="1" bindtap="changePerUser">+</view>
+    <block wx:if="{{!form.giftOnly}}">
+      <view class="field">
+        <text class="field-label">一共发几张</text>
+        <input class="field-input" type="number" placeholder="不填就是不限量" placeholder-class="placeholder" value="{{form.total}}" data-field="total" bindinput="onInput" />
+      </view>
+      <view class="field">
+        <text class="field-label">每人限领</text>
+        <view class="field-input">
+          <view class="stepper">
+            <view class="stepper-btn" data-delta="-1" bindtap="changePerUser">−</view>
+            <text class="stepper-num">{{form.perUser}}</text>
+            <view class="stepper-btn plus" data-delta="1" bindtap="changePerUser">+</view>
+          </view>
         </view>
       </view>
-    </view>
-    <view class="field">
-      <text class="field-label">发放</text>
-      <view class="field-input"><switch checked="{{form.enabled}}" color="#d6b25e" bindchange="onEnabled" /></view>
-    </view>
+      <view class="field">
+        <text class="field-label">发放</text>
+        <view class="field-input"><switch checked="{{form.enabled}}" color="#d6b25e" bindchange="onEnabled" /></view>
+      </view>
+    </block>
   </view>
 
   <view class="faint note" wx:if="{{claimed}}">已经领走 {{claimed}} 张。改金额、门槛只影响之后领的券，已领的按领取时的算。</view>
-  <view class="faint note">门槛按用完赠饮券以后还要付的钱算，最多抵到 0 元。</view>
+  <view class="faint note">改「能用在」对已经领到、送出去的券也生效。门槛按用完赠饮券以后还要付的钱算，最多抵到 0 元。</view>
 
   <view class="btn-gold btn-block save {{saving ? 'disabled' : ''}}" bindtap="save">{{saving ? '保存中…' : '保存'}}</view>
   <view class="btn-danger btn-block" wx:if="{{id}}" bindtap="remove">删除这张券</view>

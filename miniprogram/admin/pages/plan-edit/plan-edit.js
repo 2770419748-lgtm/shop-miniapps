@@ -2,11 +2,19 @@ const api = require('../../../utils/api')
 const guard = require('../../../utils/guard')
 const { fenToText, textToFen } = require('../../../utils/money')
 
+// 送券的一行：带上券的名字、金额、适用范围，页面上显示用
+function giftRow(c, count) {
+  return { couponId: c._id, title: c.title, amount: c.amount, scope: c.scope || '', count }
+}
+
 Page({
   data: {
     ready: false,
     id: '',
     form: { priceText: '', bonusText: '', memberDays: '365', title: '', desc: '', enabled: true },
+    coupons: [], // 能选来送的代金券
+    gifts: [], // 这一档送的券 [{ couponId, title, amount, scope, count }]
+    choices: [], // 还没选的券，「+ 加一种券」里列出来
     saving: false
   },
 
@@ -21,19 +29,28 @@ Page({
   init() {
     const { id } = this.options
     wx.setNavigationBarTitle({ title: id ? '编辑充值档位' : '新增充值档位' })
-    if (!id) {
-      this.setData({ ready: true })
-      return
-    }
-    api.member('getMemberSettings').then(({ plans }) => {
+    api.member('getMemberSettings').then(({ plans, coupons }) => {
+      const list = coupons || []
+      if (!id) {
+        this.setData({ ready: true, coupons: list })
+        this.refreshChoices()
+        return
+      }
       const p = plans.find((x) => x._id === id)
       if (!p) {
         wx.showToast({ title: '这个档位不存在了', icon: 'none' })
         return
       }
+      const gifts = []
+      ;(p.gifts || []).forEach((g) => {
+        const c = list.find((x) => x._id === g.couponId)
+        if (c) gifts.push(giftRow(c, g.count))
+      })
       this.setData({
         ready: true,
         id: p._id,
+        coupons: list,
+        gifts,
         form: {
           priceText: fenToText(p.price),
           bonusText: p.bonus ? fenToText(p.bonus) : '',
@@ -43,7 +60,37 @@ Page({
           enabled: p.enabled !== false
         }
       })
+      this.refreshChoices()
     }).catch(api.toastError)
+  },
+
+  refreshChoices() {
+    const picked = this.data.gifts.map((g) => g.couponId)
+    const choices = this.data.coupons
+      .filter((c) => picked.indexOf(c._id) === -1)
+      .map((c) => ({ _id: c._id, label: c.title + '（¥' + fenToText(c.amount) + (c.scope ? '，' + c.scope : '') + '）' }))
+    this.setData({ choices })
+  },
+
+  addGift(e) {
+    const choice = this.data.choices[Number(e.detail.value)]
+    const c = choice && this.data.coupons.find((x) => x._id === choice._id)
+    if (!c) return
+    this.setData({ gifts: this.data.gifts.concat([giftRow(c, 1)]) })
+    this.refreshChoices()
+  },
+
+  // 减到 0 就是不送这种券
+  changeGift(e) {
+    const index = Number(e.currentTarget.dataset.index)
+    const gifts = this.data.gifts.slice()
+    const g = gifts[index]
+    if (!g) return
+    const count = Math.min(20, g.count + Number(e.currentTarget.dataset.delta))
+    if (count < 1) gifts.splice(index, 1)
+    else gifts[index] = Object.assign({}, g, { count })
+    this.setData({ gifts })
+    this.refreshChoices()
   },
 
   onInput(e) {
@@ -62,7 +109,8 @@ Page({
     if (bonus === null) return '赠送金额填错了，不送就空着'
     const memberDays = form.memberDays === '' ? 0 : Number(form.memberDays)
     if (!Number.isInteger(memberDays) || memberDays < 0 || memberDays > 3650) return '会员天数请填 0 到 3650，不送就空着'
-    const plan = { price, bonus, memberDays, title: form.title.trim(), desc: form.desc.trim(), enabled: form.enabled }
+    const gifts = this.data.gifts.map((g) => ({ couponId: g.couponId, count: g.count }))
+    const plan = { price, bonus, memberDays, title: form.title.trim(), desc: form.desc.trim(), enabled: form.enabled, gifts }
     if (id) plan._id = id
     return plan
   },

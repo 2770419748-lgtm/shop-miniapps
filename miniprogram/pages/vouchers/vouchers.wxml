@@ -6,7 +6,8 @@
       <view class="v-amount"><text class="yen">¥</text>{{f.yuan(item.amount)}}</view>
       <view class="flex-1">
         <view class="v-title">{{item.title}}</view>
-        <view class="muted">代金券 · {{f.couponRule(item)}}</view>
+        <view class="muted">{{item.source === 'recharge' ? '充值送的代金券' : '代金券'}} · {{f.couponRule(item)}}</view>
+        <view class="gold small" wx:if="{{item.scope}}">{{item.scope}}</view>
         <view class="faint small">{{f.shortDay(item.expiresDay)}} 到期</view>
       </view>
     </block>
@@ -17,12 +18,12 @@
     </view>
     <view class="btn-gold btn-small" bindtap="goMenu">去点单</view>
   </view>
-  <view class="faint tip" wx:if="{{usable.length}}">点单结算时会自动用上，不用出示。代金券一单用一张，可以和赠饮券一起用。</view>
+  <view class="faint tip" wx:if="{{usable.length}}">点单结算时会自动用上，不用出示。代金券一单用一张，可以和赠饮券一起用；写了「限……可用」的只能抵那些商品。</view>
 
   <view class="empty" wx:if="{{loading}}">加载中…</view>
   <view class="empty" wx:elif="{{!usable.length}}">
     <view>没有能用的券。</view>
-    <view>领券中心可以领代金券，借书选「包天送咖啡」会送赠饮券。</view>
+    <view>领券中心可以领代金券，会员充值、借书选「包天送咖啡」也会送券。</view>
   </view>
 
   <view class="btn-ghost btn-block center-btn" bindtap="goCoupons">去领券中心</view>

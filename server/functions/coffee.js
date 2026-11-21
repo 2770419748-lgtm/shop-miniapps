@@ -1,5 +1,6 @@
 // 咖啡模块：菜单、下单（含预约、外送）、微信支付、余额支付、订单处理、商品分类桌台管理、代金券、集星、外送配送。
-// 读写 coffee_ 开头的集合；vouchers 里是顾客的券：赠饮券（书籍模块包天时发放）和在领券中心领的代金券，下单时核销；
+// 读写 coffee_ 开头的集合；vouchers 里是顾客的券：赠饮券（书籍模块包天时发放）、在领券中心领的和充值送的代金券，下单时核销；
+// 代金券可以限分类、限商品，适用范围和充值送券的写法见 coupons.js；
 // 用会员余额付款时通过 wallet.js 扣、退余额；集星通过 stars.js 给星、扣星（星星记在 members 上）；
 // 读 settings 里的支付设置、营业时间、会员设置、集星设置和外送设置。
 // 外送：设置和配送费见 delivery.js，叫骑手（店员自己送、微信同城配送）见 couriers.js，顾客的收货地址存在 coffee_addresses。
@@ -17,7 +18,8 @@ const {
   fetchAll,
   createMain
 } = require('./base')
-const { MAX_PRICE, isFen, buildLines, sanitizeSpecs, applyVouchers, couponDiscount, pickCoupon } = require('./pricing')
+const { MAX_PRICE, isFen, buildLines, sanitizeSpecs, applyVouchers, couponLimited, couponBase, couponDiscount, pickCoupon } = require('./pricing')
+const coupons = require('./coupons')
 const pay = require('./pay')
 const { readShop, hoursOf, reserveSlots } = require('./shop')
 const wallet = require('./wallet')
@@ -128,20 +130,45 @@ function usableVouchers(openid, ids) {
   return safeList(col('vouchers').where(where).limit(50))
 }
 
-// 顾客手里没过期、没用掉的代金券；id 不传时返回全部。
+// 顾客手里没过期、没用掉的代金券（带上模板现在的适用范围）；id 不传时返回全部。
 // 洗车送的咖啡券也在这里（usableShops 里有 coffee）；标了只能在别的店用的券不算
 async function usableCoupons(openid, id) {
   const where = { _openid: openid, type: 'cash', status: 'unused', expiresDay: _.gte(cnDay()) }
   if (id) where._id = String(id)
   const list = await safeList(col('vouchers').where(where).orderBy('expiresDay', 'asc').limit(100))
-  return list.filter((v) => !Array.isArray(v.usableShops) || v.usableShops.indexOf('coffee') !== -1)
+  return coupons.withScope(db, list.filter((v) => !Array.isArray(v.usableShops) || v.usableShops.indexOf('coffee') !== -1))
 }
 
-function couponOption(c, left) {
-  return { id: c._id, title: c.title, amount: c.amount, minSpend: c.minSpend || 0, expiresDay: c.expiresDay, discount: couponDiscount(c, left) }
+// 算代金券用的「购物车」（见 pricing.js 的 couponBase）：赠饮券、集星已经抵掉的那几杯不再算进去
+function couponCart(lines, applied, starRedeem, left) {
+  const offs = applied.map((a) => ({ productId: a.productId, discount: a.discount }))
+  if (starRedeem) offs.push({ productId: starRedeem.productId, discount: starRedeem.discount })
+  return { lines, offs, left }
 }
 
-function publicCoupon(c, mine) {
+// 结算页「选代金券」里的一张：用不上时 reason 写为什么（这单没有能用的商品、还差多少钱）
+function couponOption(c, cart, names) {
+  const discount = couponDiscount(c, cart)
+  let reason = ''
+  if (!discount) {
+    const base = couponBase(c, cart)
+    if (couponLimited(c) && !base) reason = '这单没有能用的商品'
+    else if (base < (c.minSpend || 0)) reason = '还差 ¥' + yuan(c.minSpend - base)
+    else reason = '未满足条件'
+  }
+  return {
+    id: c._id,
+    title: c.title,
+    amount: c.amount,
+    minSpend: c.minSpend || 0,
+    expiresDay: c.expiresDay,
+    scope: coupons.scopeText(c, names),
+    discount,
+    reason
+  }
+}
+
+function publicCoupon(c, mine, names) {
   const left = c.total ? Math.max(0, c.total - (c.claimed || 0)) : null
   const perUser = c.perUser || 1
   return {
@@ -149,6 +176,7 @@ function publicCoupon(c, mine) {
     title: c.title,
     amount: c.amount,
     minSpend: c.minSpend || 0,
+    scope: coupons.scopeText(c, names),
     validDays: c.validDays,
     perUser,
     left, // 还剩几张；null 表示不限量
@@ -479,7 +507,8 @@ async function loadLines(items) {
   return buildLines(res.data, items)
 }
 
-function formatVoucher(v, today) {
+// names：分类、商品的名字（coupons.loadNames），写代金券的适用范围用；不传就不写
+function formatVoucher(v, today, names) {
   if (v.type === 'cash') {
     return {
       _id: v._id,
@@ -487,6 +516,8 @@ function formatVoucher(v, today) {
       title: v.title,
       amount: v.amount,
       minSpend: v.minSpend || 0,
+      scope: names ? coupons.scopeText(v, names) : '',
+      source: v.source || '',
       expiresDay: v.expiresDay,
       status: v.status === 'unused' && v.expiresDay < today ? 'expired' : v.status,
       createdAt: v.createdAt
@@ -657,8 +688,9 @@ const handlers = {
     const plan = planStars(lines, covered, starSettings, starBalance, useStars === true)
     const starFee = plan.used ? plan.redeem.discount : 0
     const left = total - discount - starFee
-    const coupons = await usableCoupons(openid)
-    const picked = pickCoupon(coupons, left, couponId)
+    const [mine, names] = await Promise.all([usableCoupons(openid), coupons.loadNames(db)])
+    const cart = couponCart(lines, applied, plan.used ? plan.redeem : null, left)
+    const picked = pickCoupon(mine, cart, couponId)
     const couponFee = picked.discount
     let delivering = null
     if (deliver) {
@@ -697,7 +729,8 @@ const handlers = {
       // 集星：没开时是 null。redeem 是能免费换的那杯（星星不够或者没有能换的商品时是 null），used 表示这次算价用上了
       stars: starSettings.enabled ? { balance: starBalance, need: starSettings.need, redeem: plan.redeem, used: plan.used, earn: plan.earn } : null,
       starFee,
-      coupons: coupons.map((c) => couponOption(c, left)).sort((a, b) => b.discount - a.discount),
+      // 能用的排前面；用不上的写着为什么（限了品类的券这单没有能用的商品，或者还差多少钱）
+      coupons: mine.map((c) => couponOption(c, cart, names)).sort((a, b) => b.discount - a.discount),
       coupon: picked.coupon ? { id: picked.coupon._id, title: picked.coupon.title, discount: couponFee } : null,
       couponFee,
       discountFee: discount + starFee + couponFee,
@@ -768,11 +801,11 @@ const handlers = {
     if (useStars === true && !plan.used) throw new BizError('集星兑换有变化，请重新确认订单', 'STARS_CHANGED')
     const starFee = plan.used ? plan.redeem.discount : 0
 
-    // 代金券：一单最多一张，门槛按用完赠饮券和集星兑换以后的金额算
+    // 代金券：一单最多一张，门槛按用完赠饮券和集星兑换以后的金额算；限了品类的券只算能用的那几样商品
     let coupon = null
     if (couponId) {
       const found = (await usableCoupons(openid, couponId))[0]
-      const fee = couponDiscount(found, total - discount - starFee)
+      const fee = couponDiscount(found, couponCart(lines, applied, plan.used ? plan.redeem : null, total - discount - starFee))
       if (!fee) throw new BizError('代金券有变化，请重新确认订单', 'VOUCHER_CHANGED')
       coupon = { id: found._id, title: found.title, discount: fee }
     }
@@ -895,7 +928,8 @@ const handlers = {
     const today = cnDay()
     try {
       const res = await col('vouchers').where({ _openid: openid }).orderBy('createdAt', 'desc').limit(100).get()
-      const list = res.data.map((v) => formatVoucher(v, today))
+      const [scoped, names] = await Promise.all([coupons.withScope(db, res.data), coupons.loadNames(db)])
+      const list = scoped.map((v) => formatVoucher(v, today, names))
       return {
         usable: list.filter((v) => v.status === 'unused'),
         others: list.filter((v) => v.status !== 'unused')
@@ -1359,14 +1393,16 @@ const handlers = {
 
   // ---------- 领券中心（顾客） ----------
 
+  // 只在充值时送的券（giftOnly）不在这里；充值送的不算「你已领」
   async couponCenter(event, openid) {
-    const [coupons, mine] = await Promise.all([
+    const [list, mine, names] = await Promise.all([
       safeList(col('coffee_coupons').where({ enabled: true }).orderBy('sort', 'asc').limit(100)),
-      safeList(col('vouchers').where({ _openid: openid, type: 'cash' }).limit(1000))
+      safeList(col('vouchers').where({ _openid: openid, type: 'cash', source: 'coupon' }).limit(1000)),
+      coupons.loadNames(db)
     ])
     const count = {}
     mine.forEach((v) => { count[v.couponId] = (count[v.couponId] || 0) + 1 })
-    return { coupons: coupons.map((c) => publicCoupon(c, count[c._id] || 0)) }
+    return { coupons: list.filter((c) => !c.giftOnly).map((c) => publicCoupon(c, count[c._id] || 0, names)) }
   },
 
   // 领券：排队执行，不会超发，也不会超过每人限领
@@ -1374,10 +1410,11 @@ const handlers = {
     const couponId = String(id || '')
     return db.runTransaction(async () => {
       const c = await findOne('coffee_coupons', { _id: couponId })
-      if (!c || !c.enabled) throw new BizError('这张券已经下架了', 'COUPON_GONE')
+      if (!c || !c.enabled || c.giftOnly) throw new BizError('这张券已经下架了', 'COUPON_GONE')
       if (c.total && (c.claimed || 0) >= c.total) throw new BizError('这张券已经被领完了', 'COUPON_SOLD_OUT')
       const perUser = c.perUser || 1
-      const mine = await col('vouchers').where({ _openid: openid, type: 'cash', couponId }).count()
+      // 充值送的同一种券不算在每人限领里
+      const mine = await col('vouchers').where({ _openid: openid, type: 'cash', couponId, source: 'coupon' }).count()
       if (mine.total >= perUser) {
         throw new BizError(perUser > 1 ? '这张券每人最多领 ' + perUser + ' 张，你已经领满了' : '这张券你已经领过了', 'COUPON_LIMIT')
       }
@@ -1391,6 +1428,9 @@ const handlers = {
         title: c.title,
         amount: c.amount,
         minSpend: c.minSpend || 0,
+        // 适用范围记一份；模板还在时以模板为准（见 coupons.js）
+        categoryIds: c.categoryIds || [],
+        productIds: c.productIds || [],
         claimDay: today,
         // 领取当天算第 1 天
         expiresDay: cnDay(Date.now() + (c.validDays - 1) * DAY_MS),
@@ -1406,11 +1446,23 @@ const handlers = {
 
   // ---------- 代金券设置（店主） ----------
 
+  // 每张券：已领（领券中心）、已送（充值送的）、已用几张，适用范围的说明（scope，全场能用是 ''）
   async adminListCoupons(event, openid) {
     await requireRole(db, openid, ['owner'])
-    const coupons = await safeList(col('coffee_coupons').orderBy('sort', 'asc').limit(100))
-    const used = await Promise.all(coupons.map((c) => col('vouchers').where({ couponId: c._id, status: 'used' }).count()))
-    return coupons.map((c, i) => Object.assign({}, c, { claimed: c.claimed || 0, used: used[i].total }))
+    const [list, names] = await Promise.all([safeList(col('coffee_coupons').orderBy('sort', 'asc').limit(100)), coupons.loadNames(db)])
+    const counts = await Promise.all(list.map((c) => Promise.all([
+      col('vouchers').where({ couponId: c._id, status: 'used' }).count(),
+      col('vouchers').where({ couponId: c._id, source: 'recharge' }).count()
+    ])))
+    return list.map((c, i) => Object.assign({}, c, {
+      claimed: c.claimed || 0,
+      used: counts[i][0].total,
+      gifted: counts[i][1].total,
+      giftOnly: !!c.giftOnly,
+      categoryIds: c.categoryIds || [],
+      productIds: c.productIds || [],
+      scope: coupons.scopeText(c, names)
+    }))
   },
 
   async saveCoupon({ coupon }, openid) {
@@ -1427,6 +1479,8 @@ const handlers = {
     if (!Number.isInteger(total) || total < 0 || total > MAX_COUPON_TOTAL) throw new BizError('发放总数不对，不限量填 0')
     const perUser = c.perUser === undefined || c.perUser === '' || c.perUser === null ? 1 : Number(c.perUser)
     if (!Number.isInteger(perUser) || perUser < 1 || perUser > MAX_COUPON_PER_USER) throw new BizError('每人限领请填 1 到 ' + MAX_COUPON_PER_USER + ' 张')
+    // 适用范围、只在充值时送：没传（旧版小程序后台）就不改
+    const scope = c.categoryIds === undefined && c.productIds === undefined ? null : await coupons.cleanScope(db, c)
     const data = {
       title: cleanText(c.title, 16) || (minSpend ? '满' + yuan(minSpend) + '减' + yuan(amount) : yuan(amount) + '元无门槛券'),
       amount,
@@ -1437,6 +1491,8 @@ const handlers = {
       enabled: c.enabled !== false,
       updatedAt: db.serverDate()
     }
+    if (scope) Object.assign(data, scope)
+    if (c.giftOnly !== undefined) data.giftOnly = c.giftOnly === true
     if (c.sort !== undefined) data.sort = toSort(c.sort)
     if (c._id) {
       const old = await findOne('coffee_coupons', { _id: String(c._id) })
@@ -1448,6 +1504,8 @@ const handlers = {
     const count = await col('coffee_coupons').count()
     if (count.total >= 100) throw new BizError('代金券最多 100 种，先删掉一些不用的')
     if (data.sort === undefined) data.sort = count.total
+    if (!scope) Object.assign(data, { categoryIds: [], productIds: [] })
+    if (data.giftOnly === undefined) data.giftOnly = false
     data.claimed = 0
     data.createdAt = db.serverDate()
     const added = await col('coffee_coupons').add({ data })
@@ -1472,9 +1530,13 @@ const handlers = {
     return true
   },
 
-  // 删掉券的设置，顾客已经领到手的照样能用
+  // 删掉券的设置，顾客已经领到手的照样能用。还有充值档位在送这张券时不让删，免得顾客充了钱却没送到
   async deleteCoupon({ id }, openid) {
     await requireRole(db, openid, ['owner'])
+    const giving = await coupons.plansGiving(db, String(id || ''))
+    if (giving.length) {
+      throw new BizError('充值档位「' + giving.map((p) => p.title).join('」「') + '」还在送这张券，先到「储值设置」里把它去掉再删', 'COUPON_IN_PLAN')
+    }
     await col('coffee_coupons').where({ _id: String(id || '') }).remove()
     return true
   },

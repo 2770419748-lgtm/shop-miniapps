@@ -1,3 +1,6 @@
+.small {
+  font-size: 24rpx;
+}
 .field-label {
   width: 200rpx;
 }
@@ -8,4 +11,27 @@
 }
 .save {
   margin: 24rpx 0 20rpx;
+}
+.gift {
+  display: flex;
+  align-items: center;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid var(--line);
+}
+.gift-info {
+  margin-right: 16rpx;
+}
+.gift-title {
+  font-size: 28rpx;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.add-gift {
+  height: 80rpx;
+  line-height: 80rpx;
+  font-size: 28rpx;
+}
+.gift-tip {
+  line-height: 1.6;
 }

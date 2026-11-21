@@ -124,23 +124,53 @@ function applyVouchers(lines, vouchers, covered) {
   return { applied, discount, covered }
 }
 
+// 代金券的适用范围：categoryIds（限这些分类）、productIds（限这些商品），两个都空就是全部商品都能用。
+function couponLimited(coupon) {
+  return !!(coupon && ((coupon.categoryIds || []).length || (coupon.productIds || []).length))
+}
+
+function couponFits(coupon, line) {
+  if (!couponLimited(coupon)) return true
+  return (coupon.categoryIds || []).indexOf(line.categoryId) !== -1 || (coupon.productIds || []).indexOf(line.productId) !== -1
+}
+
+// 这张券在这一单里能抵的那部分还要付多少钱。
+// cart 可以直接是一个数（全场券用：用完赠饮券、集星以后还要付的钱），
+// 也可以是 { lines, offs, left }：offs 是赠饮券、集星已经抵掉的 [{ productId, discount }]，left 是整单还要付的钱。
+// 限了分类或商品的券只算能用的那几样商品（减掉它们已经被抵掉的），全场券就是 left。
+function couponBase(coupon, cart) {
+  if (typeof cart === 'number') return cart
+  if (!couponLimited(coupon)) return cart.left
+  const fits = {}
+  let base = 0
+  ;(cart.lines || []).forEach((l) => {
+    if (!couponFits(coupon, l)) return
+    fits[l.productId] = true
+    base += l.subtotal
+  })
+  ;(cart.offs || []).forEach((o) => { if (fits[o.productId]) base -= o.discount })
+  return Math.max(0, Math.min(base, cart.left))
+}
+
 // 代金券：满 minSpend 减 amount（minSpend 为 0 是无门槛券），最多抵到 0。
-// left 是用完赠饮券以后还要付的钱，门槛按它算。用不上返回 0。
-function couponDiscount(coupon, left) {
-  if (!coupon || !(left > 0)) return 0
+// 门槛按 couponBase 算：全场券看用完赠饮券以后还要付的钱，限品类的券只看能用的那几样商品。用不上返回 0。
+function couponDiscount(coupon, cart) {
+  if (!coupon) return 0
+  const left = couponBase(coupon, cart)
+  if (!(left > 0)) return 0
   if (left < (coupon.minSpend || 0)) return 0
   return Math.min(coupon.amount, left)
 }
 
 // 一单最多用一张代金券。couponId 不传时自动挑抵得最多的（一样多就挑先过期的）；传 '' 表示不用；
-// 传了某张但用不上，也当作不用。返回 { coupon, discount }
-function pickCoupon(coupons, left, couponId) {
+// 传了某张但用不上，也当作不用。cart 见 couponBase。返回 { coupon, discount }
+function pickCoupon(coupons, cart, couponId) {
   if (couponId === '') return { coupon: null, discount: 0 }
   const list = (coupons || []).filter((c) => couponId === undefined || couponId === null || c._id === couponId)
   let best = null
   let bestValue = 0
   list.forEach((c) => {
-    const value = couponDiscount(c, left)
+    const value = couponDiscount(c, cart)
     if (value > bestValue || (value && value === bestValue && c.expiresDay < best.expiresDay)) {
       best = c
       bestValue = value
@@ -149,4 +179,4 @@ function pickCoupon(coupons, left, couponId) {
   return { coupon: best, discount: bestValue }
 }
 
-module.exports = { MAX_PRICE, isFen, buildLines, sanitizeSpecs, applyVouchers, couponDiscount, pickCoupon }
+module.exports = { MAX_PRICE, isFen, buildLines, sanitizeSpecs, applyVouchers, couponLimited, couponFits, couponBase, couponDiscount, pickCoupon }

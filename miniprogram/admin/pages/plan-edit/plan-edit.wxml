@@ -1,3 +1,5 @@
+<wxs src="../../../utils/filters.wxs" module="f" />
+
 <view class="page" wx:if="{{ready}}">
   <view class="card">
     <view class="field">
@@ -12,6 +14,26 @@
       <text class="field-label">送会员天数</text>
       <input class="field-input" type="number" placeholder="一年填 365，不送就空着" placeholder-class="placeholder" value="{{form.memberDays}}" data-field="memberDays" bindinput="onInput" />
     </view>
+  </view>
+
+  <view class="section-title">充值送券</view>
+  <view class="card">
+    <view wx:for="{{gifts}}" wx:key="couponId" class="gift">
+      <view class="flex-1 gift-info">
+        <view class="gift-title">{{item.title}}</view>
+        <view class="faint small">¥{{f.yuan(item.amount)}}{{item.scope ? ' · ' + item.scope : ''}}</view>
+      </view>
+      <view class="stepper">
+        <view class="stepper-btn" data-index="{{index}}" data-delta="-1" bindtap="changeGift">−</view>
+        <text class="stepper-num">{{item.count}}</text>
+        <view class="stepper-btn plus" data-index="{{index}}" data-delta="1" bindtap="changeGift">+</view>
+      </view>
+    </view>
+    <picker wx:if="{{choices.length && gifts.length < 5}}" range="{{choices}}" range-key="label" bindchange="addGift">
+      <view class="gold add-gift">+ 加一种券</view>
+    </picker>
+    <view class="faint small gift-tip" wx:if="{{!coupons.length}}">还没有代金券。先到「代金券」里新增一张，比如「基础饮品券」，怎么发选「只在充值时送」。</view>
+    <view class="faint small gift-tip" wx:else>减到 0 就是不送这种券。券的金额、能用在哪些商品、有效天数在「代金券」里设。</view>
   </view>
 
   <view class="card">
@@ -30,7 +52,8 @@
   </view>
 
   <view class="faint note">会员天数从充值当天算第 1 天；已经是会员的，从原来的到期日往后加。</view>
-  <view class="faint note">改金额只影响以后的充值，已经充进去的钱不变。</view>
+  <view class="faint note">充值成功（在线付款或吧台代充）时，送的券自动发到顾客的「我的券」。</view>
+  <view class="faint note">改金额、送券只影响以后的充值，已经充进去的钱、送出去的券不变。</view>
 
   <view class="btn-gold btn-block save {{saving ? 'disabled' : ''}}" bindtap="save">{{saving ? '保存中…' : '保存'}}</view>
   <view class="btn-danger btn-block" wx:if="{{id}}" bindtap="remove">删除这个档位</view>
