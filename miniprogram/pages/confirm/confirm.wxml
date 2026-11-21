@@ -170,7 +170,8 @@
     <view class="coupon-amount"><text class="price big">{{f.yuan(item.amount)}}</text></view>
     <view class="flex-1">
       <view>{{item.title}}</view>
-      <view class="faint small">{{f.couponRule(item)}}{{item.scope ? ' · ' + item.scope : ''}} · {{f.shortDay(item.expiresDay)}} 到期</view>
+      <view class="faint small">{{f.couponRule(item)}} · {{f.shortDay(item.expiresDay)}} 到期</view>
+      <view class="gold small" wx:if="{{item.scope}}">{{item.scope}}</view>
       <view class="small coupon-reason" wx:if="{{!item.discount}}">{{item.reason || '未满足条件'}}</view>
     </view>
     <text class="gold coupon-check" wx:if="{{quote.coupon && quote.coupon.id === item.id}}">✓</text>
