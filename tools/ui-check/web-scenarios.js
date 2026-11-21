@@ -17,6 +17,8 @@ const DIALOGS = [
   { path: '/products', click: '新增商品', name: 'products-new' },
   { path: '/books', click: '录入新书', name: 'books-new' },
   { path: '/coupons', click: '新增代金券', name: 'coupons-new' },
+  // 第一个档位送了券：编辑弹窗里有送券那几行
+  { path: '/member-settings', click: '编辑', name: 'member-plan-edit' },
   { path: '/members', click: '详情', name: 'members-detail' }
 ]
 
