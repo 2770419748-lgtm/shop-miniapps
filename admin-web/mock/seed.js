@@ -23,12 +23,13 @@ module.exports = async function seed(as, db) {
   await ok(owner.common('saveBanner', { banner: { kind: 'product', targetId: byName('拿铁')._id, title: '秋季新品 桂花拿铁' } }))
   await ok(owner.common('saveBanner', { banner: { kind: 'coupons', subtitle: '满 30 减 5，先到先得' } }))
   const c30 = await ok(owner.coffee('saveCoupon', { coupon: { amount: 500, minSpend: 3000, validDays: 7, total: 100, perUser: 1 } }))
-  await ok(owner.coffee('saveCoupon', { coupon: { title: '新人券', amount: 300, validDays: 3, perUser: 1 } }))
+  const newbie = await ok(owner.coffee('saveCoupon', { coupon: { title: '新人券', amount: 300, validDays: 3, perUser: 1 } }))
   // 限品类的券：小食券只能买甜点；基础饮品券只在充值时送，只能抵美式、拿铁、柠檬茶
   const catOf = (n) => menu.categories.find((c) => c.name === n)._id
   const snackCoupon = await ok(owner.coffee('saveCoupon', { coupon: { title: '小食立减4元券（薯条/鸡米花', amount: 400, minSpend: 1200, validDays: 60, perUser: 1, categoryIds: [catOf('甜点')] } }))
   const drinkCoupon = await ok(owner.coffee('saveCoupon', { coupon: { title: '基础饮品券', amount: 1800, validDays: 90, giftOnly: true, productIds: [byName('美式')._id, byName('拿铁')._id, byName('柠檬茶')._id] } }))
   await ok(customers[0].coffee('claimCoupon', { id: snackCoupon.id }))
+  await ok(customers[0].coffee('claimCoupon', { id: newbie.id }))
   await ok(customers[1].coffee('claimCoupon', { id: c30.id }))
   await ok(customers[2].coffee('claimCoupon', { id: c30.id }))
   const o1 = await ok(customers[0].coffee('createOrder', { mode: 'dine_in', tableNo: '5', remark: '少冰', items: [{ productId: byName('拿铁')._id, qty: 2, specs: cup }, { productId: byName('芝士蛋糕')._id, qty: 1 }] }))
@@ -62,6 +63,13 @@ module.exports = async function seed(as, db) {
   await ok(as('BARISTA').member('counterRecharge', { memberNo: m1.member.memberNo, planId: p300.id }))
   await ok(as('BARISTA').member('setMemberRemark', { memberNo: m1.member.memberNo, remark: '张女士 尾号 6688' }))
   await ok(customers[0].coffee('createOrder', { mode: 'takeaway', payBy: 'balance', items: [{ productId: byName('美式')._id, qty: 1, specs: [{ name: '杯型', option: '中杯' }, { name: '温度', option: '冰' }] }] }))
+  // C3 也在吧台充了 300（送基础饮品券），领了小食券，一单里两张一起用：美式用饮品券、蛋糕用小食券
+  const m3 = await ok(customers[2].member('getMember'))
+  await ok(as('BARISTA').member('counterRecharge', { memberNo: m3.member.memberNo, planId: p300.id }))
+  await ok(customers[2].coffee('claimCoupon', { id: snackCoupon.id }))
+  const twoItems = [{ productId: byName('美式')._id, qty: 1, specs: [{ name: '杯型', option: '大杯' }, { name: '温度', option: '冰' }] }, { productId: byName('芝士蛋糕')._id, qty: 1 }]
+  const q3 = await ok(customers[2].coffee('quote', { items: twoItems, couponIds: 'auto' }))
+  await ok(customers[2].coffee('createOrder', { mode: 'takeaway', payBy: 'balance', items: twoItems, couponIds: q3.usedCoupons.map((c) => c.id) }))
 
   // 外送：店员自己送，3 公里内 5 元、超出每公里加 2 元、满 100 免配送费；C1 用余额下了一张外送单
   await ok(owner.coffee('saveDeliverySettings', {

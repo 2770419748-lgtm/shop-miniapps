@@ -18,7 +18,7 @@ const {
   fetchAll,
   createMain
 } = require('./base')
-const { MAX_PRICE, isFen, buildLines, sanitizeSpecs, applyVouchers, couponLimited, couponBase, couponDiscount, pickCoupon } = require('./pricing')
+const { MAX_PRICE, MAX_COUPONS, isFen, buildLines, sanitizeSpecs, applyVouchers, couponLimited, couponBase, couponDiscount, pickCoupon, couponsClash, stackCoupons, bestCoupons } = require('./pricing')
 const coupons = require('./coupons')
 const pay = require('./pay')
 const { readShop, hoursOf, reserveSlots } = require('./shop')
@@ -72,9 +72,16 @@ function makeOrderNo() {
   return 'JS' + cnStamp() + String(Math.floor(Math.random() * 10000)).padStart(4, '0')
 }
 
+// 订单用了哪些代金券：1.0.2 起一单能用几张（coupons），以前的单只有 coupon 一张
+function orderCoupons(order) {
+  if (Array.isArray(order.coupons)) return order.coupons
+  return order.coupon ? [order.coupon] : []
+}
+
 function formatOrder(order) {
   const out = Object.assign({}, order)
   delete out._openid
+  out.coupons = orderCoupons(order)
   if (order.delivery) out.delivery = Object.assign({ statusText: couriers.STATUS_TEXT[order.delivery.status] || '' }, order.delivery)
   return out
 }
@@ -130,11 +137,10 @@ function usableVouchers(openid, ids) {
   return safeList(col('vouchers').where(where).limit(50))
 }
 
-// 顾客手里没过期、没用掉的代金券（带上模板现在的适用范围）；id 不传时返回全部。
+// 顾客手里没过期、没用掉的代金券（带上模板现在的适用范围）。
 // 洗车送的咖啡券也在这里（usableShops 里有 coffee）；标了只能在别的店用的券不算
-async function usableCoupons(openid, id) {
+async function usableCoupons(openid) {
   const where = { _openid: openid, type: 'cash', status: 'unused', expiresDay: _.gte(cnDay()) }
-  if (id) where._id = String(id)
   const list = await safeList(col('vouchers').where(where).orderBy('expiresDay', 'asc').limit(100))
   return coupons.withScope(db, list.filter((v) => !Array.isArray(v.usableShops) || v.usableShops.indexOf('coffee') !== -1))
 }
@@ -147,8 +153,11 @@ function couponCart(lines, applied, starRedeem, left) {
 }
 
 // 结算页「选代金券」里的一张：用不上时 reason 写为什么（这单没有能用的商品、还差多少钱）
-function couponOption(c, cart, names) {
+// picked 是这次用上的券（[{ coupon, discount }]）：用上的打勾；能用但和用上的撞了的，clash 写会换掉哪几张
+function couponOption(c, cart, names, picked) {
   const discount = couponDiscount(c, cart)
+  const on = picked.some((p) => p.coupon._id === c._id)
+  const clash = on || !discount ? [] : picked.filter((p) => couponsClash(p.coupon, c, cart)).map((p) => p.coupon.title)
   let reason = ''
   if (!discount) {
     const base = couponBase(c, cart)
@@ -164,7 +173,9 @@ function couponOption(c, cart, names) {
     expiresDay: c.expiresDay,
     scope: coupons.scopeText(c, names),
     discount,
-    reason
+    reason,
+    picked: on,
+    clash: clash.join('、')
   }
 }
 
@@ -262,10 +273,34 @@ function voucherIdList(value) {
   return value.filter((id) => typeof id === 'string').slice(0, 20)
 }
 
+// 选的代金券 id：去掉重复的，最多 MAX_COUPONS 张
+function couponIdList(value) {
+  if (!Array.isArray(value)) return []
+  const out = []
+  value.forEach((id) => {
+    if (typeof id === 'string' && id && out.indexOf(id) === -1 && out.length < MAX_COUPONS) out.push(id)
+  })
+  return out
+}
+
+// 这一单用哪些代金券，返回 [{ coupon, discount }]。
+// couponIds（1.0.2 起的小程序）：'auto' 自动挑一组抵得最多的；数组是顾客选的，按顺序用，撞了的、用不上的跳过。
+// 没传 couponIds 是旧版小程序：只用一张，couponId 的意思见 pickCoupon。
+function chooseCoupons(mine, cart, couponIds, couponId) {
+  if (couponIds === undefined) {
+    const one = pickCoupon(mine, cart, couponId)
+    return one.coupon ? [{ coupon: one.coupon, discount: one.discount }] : []
+  }
+  if (!Array.isArray(couponIds)) return bestCoupons(mine, cart).picked
+  const byId = {}
+  mine.forEach((c) => { byId[c._id] = c })
+  return stackCoupons(couponIdList(couponIds).map((id) => byId[id]).filter(Boolean), cart).picked
+}
+
 // 订单取消时把用掉的赠饮券、代金券和兑换用的星星退回去；星星同一单只退一次
 async function releaseDiscounts(order) {
   const ids = (order.vouchers || []).map((v) => v.id)
-  if (order.coupon) ids.push(order.coupon.id)
+  orderCoupons(order).forEach((c) => ids.push(c.id))
   if (ids.length) {
     await col('vouchers')
       .where({ _id: _.in(ids), status: 'used', orderNo: order.orderNo })
@@ -661,11 +696,11 @@ const handlers = {
   },
 
   // 结算页算价：按数据库价格算总价，自动用上今天能用的赠饮券（noVouchers 为 true 时不用），
-  // 再挑一张代金券（couponId 传 '' 表示不用）。
+  // 再挑代金券：couponIds 见 chooseCoupons（旧版小程序传 couponId，'' 表示不用）。
   // 预约时 reserve 传 true，返回能选的时间；reserveAt 是选中的那一档，没选或者选的不能约了就用最早的一档。
   // useStars 为 true 时用星免费换一杯（星星够才换得了）。
   // 外送时 delivery 传 true，addressId 是选的收货地址（不传用默认地址），返回配送费、起送价、能不能送。
-  async quote({ items, couponId, reserve, reserveAt, noVouchers, useStars, delivery: deliver, addressId }, openid) {
+  async quote({ items, couponId, couponIds, reserve, reserveAt, noVouchers, useStars, delivery: deliver, addressId }, openid) {
     const { lines, total } = await loadLines(items)
     const [settings, walletInfo, templates, starSettings, member] = await Promise.all([
       pay.getSettings(db),
@@ -690,8 +725,9 @@ const handlers = {
     const left = total - discount - starFee
     const [mine, names] = await Promise.all([usableCoupons(openid), coupons.loadNames(db)])
     const cart = couponCart(lines, applied, plan.used ? plan.redeem : null, left)
-    const picked = pickCoupon(mine, cart, couponId)
-    const couponFee = picked.discount
+    const picked = chooseCoupons(mine, cart, couponIds, couponId)
+    const used = picked.map((p) => ({ id: p.coupon._id, title: p.coupon.title, discount: p.discount }))
+    const couponFee = used.reduce((sum, c) => sum + c.discount, 0)
     let delivering = null
     if (deliver) {
       const st = await delivery.readState(db)
@@ -729,9 +765,11 @@ const handlers = {
       // 集星：没开时是 null。redeem 是能免费换的那杯（星星不够或者没有能换的商品时是 null），used 表示这次算价用上了
       stars: starSettings.enabled ? { balance: starBalance, need: starSettings.need, redeem: plan.redeem, used: plan.used, earn: plan.earn } : null,
       starFee,
-      // 能用的排前面；用不上的写着为什么（限了品类的券这单没有能用的商品，或者还差多少钱）
-      coupons: mine.map((c) => couponOption(c, cart, names)).sort((a, b) => b.discount - a.discount),
-      coupon: picked.coupon ? { id: picked.coupon._id, title: picked.coupon.title, discount: couponFee } : null,
+      // 用上的排最前，再是能用的；用不上的写着为什么（限了品类的券这单没有能用的商品，或者还差多少钱）
+      coupons: mine.map((c) => couponOption(c, cart, names, picked)).sort((a, b) => (b.picked - a.picked) || (b.discount - a.discount)),
+      // 用上的代金券 [{ id, title, discount }]；coupon 是第一张（旧版小程序只认这个）
+      usedCoupons: used,
+      coupon: used[0] || null,
       couponFee,
       discountFee: discount + starFee + couponFee,
       deliveryFee,
@@ -750,7 +788,7 @@ const handlers = {
   // payBy 传 'balance' 表示用会员余额付，下单时直接扣；subscribed 为 true 表示顾客允许了取餐通知；
   // useStars 为 true 表示用星免费换一杯，下单时扣星。
   // 外送：mode 是 delivery，addressId 是收货地址；要在线付款（微信或余额），付完店员才看得到
-  async createOrder({ items, mode, tableNo, remark, voucherIds, couponId, reserveAt, payBy, subscribed, useStars, addressId }, openid) {
+  async createOrder({ items, mode, tableNo, remark, voucherIds, couponId, couponIds, reserveAt, payBy, subscribed, useStars, addressId }, openid) {
     if (MODES.indexOf(mode) === -1) throw new BizError('请选择堂食、外带或外送')
     const { lines, total } = await loadLines(items)
     const reserving = reserveAt !== undefined && reserveAt !== null
@@ -801,15 +839,20 @@ const handlers = {
     if (useStars === true && !plan.used) throw new BizError('集星兑换有变化，请重新确认订单', 'STARS_CHANGED')
     const starFee = plan.used ? plan.redeem.discount : 0
 
-    // 代金券：一单最多一张，门槛按用完赠饮券和集星兑换以后的金额算；限了品类的券只算能用的那几样商品
-    let coupon = null
-    if (couponId) {
-      const found = (await usableCoupons(openid, couponId))[0]
-      const fee = couponDiscount(found, couponCart(lines, applied, plan.used ? plan.redeem : null, total - discount - starFee))
-      if (!fee) throw new BizError('代金券有变化，请重新确认订单', 'VOUCHER_CHANGED')
-      coupon = { id: found._id, title: found.title, discount: fee }
+    // 代金券：门槛按用完赠饮券和集星兑换以后的金额算；限了品类的券只算能用的那几样商品。
+    // 能用在不同商品上的券可以一起用（饮品券 + 小食券），撞了的只能用一张；旧版小程序传 couponId，只用一张
+    const cart = couponCart(lines, applied, plan.used ? plan.redeem : null, total - discount - starFee)
+    const wanted = Array.isArray(couponIds) ? couponIdList(couponIds) : (couponId ? [String(couponId)] : [])
+    let used = []
+    if (wanted.length) {
+      const mine = await usableCoupons(openid)
+      const list = wanted.map((id) => mine.find((c) => c._id === id))
+      const picked = list.every(Boolean) ? stackCoupons(list, cart).picked : []
+      if (picked.length !== wanted.length) throw new BizError('代金券有变化，请重新确认订单', 'VOUCHER_CHANGED')
+      used = picked.map((p) => ({ id: p.coupon._id, title: p.coupon.title, discount: p.discount }))
     }
-    const couponFee = coupon ? coupon.discount : 0
+    const coupon = used[0] || null
+    const couponFee = used.reduce((sum, c) => sum + c.discount, 0)
     const payFee = total - discount - starFee - couponFee + deliveryFee
     const byBalance = payBy === 'balance' && payFee > 0
     if (reserving && payFee > 0 && !byBalance && !paySettings.payEnabled) {
@@ -829,7 +872,7 @@ const handlers = {
       ? col('vouchers').where({ _id: _.in(claimed), orderNo }).update({ data: { status: 'unused', orderNo: '', usedAt: null } })
       : Promise.resolve())
     const claims = applied.map((a) => ({ _id: a.id, _openid: openid, status: 'unused' }))
-    if (coupon) claims.push({ _id: coupon.id, _openid: openid, type: 'cash', status: 'unused' })
+    used.forEach((c) => claims.push({ _id: c.id, _openid: openid, type: 'cash', status: 'unused' }))
     for (const where of claims) {
       const res = await col('vouchers').where(where).update({ data: { status: 'used', orderNo, usedAt: db.serverDate() } })
       if (!res.stats.updated) {
@@ -883,7 +926,8 @@ const handlers = {
         items: lines,
         totalFee: total,
         vouchers: applied,
-        coupon,
+        coupons: used, // 用的代金券 [{ id, title, discount }]
+        coupon, // 第一张（旧版小程序的订单页只认这个）
         couponFee,
         starRedeem, // 用星换的那杯 { stars, productId, name, discount, lots（扣掉的批次，取消时按原来的日子退回） }
         starFee,
@@ -1240,7 +1284,7 @@ const handlers = {
         r.deliveryFee += o.deliveryFee || 0 // 顾客付的配送费，含在实收里
       }
       r.vouchersUsed += (o.vouchers || []).length
-      if (o.coupon) r.couponsUsed++
+      r.couponsUsed += orderCoupons(o).length
       if (o.starRedeem) r.starCups++
       if (o.starsCredited) r.starsIssued += o.starsEarn || 0
       if (o.payStatus === 'paid') {

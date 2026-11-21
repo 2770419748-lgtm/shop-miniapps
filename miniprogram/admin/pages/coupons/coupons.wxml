@@ -2,7 +2,7 @@
 
 <view wx:if="{{ready}}">
   <view class="page">
-    <view class="faint intro">顾客在首页「领券中心」自己领，或者充值时送（在「储值设置」的档位里选）。下单时自动抵扣，一单用一张，可以和赠饮券一起用。可以限定只能用在哪些分类、商品上。关掉「发放」后顾客领不到了，已经领的照样能用。</view>
+    <view class="faint intro">顾客在首页「领券中心」自己领，或者充值时送（在「储值设置」的档位里选）。下单时自动抵扣，可以和赠饮券一起用。可以限定只能用在哪些分类、商品上；各抵各的券同一单能一起用（饮品券 + 小食券），同一类的一单只用一张。关掉「发放」后顾客领不到了，已经领的照样能用。</view>
 
     <view wx:for="{{coupons}}" wx:key="_id" class="card coupon {{item.enabled || item.giftOnly ? '' : 'off'}}" data-id="{{item._id}}" bindtap="edit">
       <view class="amount"><text class="yen">¥</text>{{f.yuan(item.amount)}}</view>

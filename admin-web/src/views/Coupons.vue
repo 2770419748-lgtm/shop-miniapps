@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="toolbar">
-      <span class="tip">顾客在首页「领券中心」自己领，或者充值时送（在「储值设置」的档位里选）。下单时自动抵扣，一单用一张，可以和赠饮券一起用。可以限定只能用在哪些分类、商品上，比如小食券只能买小食。停发后领不到了，已经领的照样能用。</span>
+      <span class="tip">顾客在首页「领券中心」自己领，或者充值时送（在「储值设置」的档位里选）。下单时自动抵扣，可以和赠饮券一起用。可以限定只能用在哪些分类、商品上，比如小食券只能买小食；各抵各的券同一单能一起用（饮品券 + 小食券），同一类的一单只用一张。停发后领不到了，已经领的照样能用。</span>
       <span class="spacer"></span>
       <el-button type="primary" @click="openEdit(null)">新增代金券</el-button>
     </div>
@@ -94,7 +94,7 @@
         </template>
       </el-form>
       <div class="tip" v-if="form.claimed">已经领走 {{ form.claimed }} 张。改金额、门槛只影响之后领的券，已领的按领取时的算。</div>
-      <div class="tip">改「能用在」对已经领到、送出去的券也生效。门槛按用完赠饮券以后还要付的钱算，最多抵到 0 元。</div>
+      <div class="tip">改「能用在」对已经领到、送出去的券也生效。门槛按用完赠饮券以后还要付的钱算，最多抵到 0 元。能抵同一样商品的券一单只用一张，全部商品都能用的券不和别的券一起用；饮品券选「咖啡」「非咖啡」，小食券选「小食」，两张就能同一单一起用。</div>
       <template #footer>
         <el-button @click="dialog = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="save">保存</el-button>

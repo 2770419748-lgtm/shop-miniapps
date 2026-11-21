@@ -110,7 +110,7 @@
   <view class="card row-between" wx:if="{{quote && quote.coupons.length}}" bindtap="openCoupons" hover-class="btn-hover">
     <text>代金券</text>
     <view class="row">
-      <text class="gold" wx:if="{{quote.coupon}}">-¥{{f.yuan(quote.couponFee)}}</text>
+      <text class="gold" wx:if="{{quote.usedCoupons.length}}">{{quote.usedCoupons.length > 1 ? quote.usedCoupons.length + ' 张 ' : ''}}-¥{{f.yuan(quote.couponFee)}}</text>
       <text class="faint" wx:elif="{{usableCoupons}}">{{usableCoupons}} 张可用</text>
       <text class="faint" wx:else>这单用不上</text>
       <text class="cell-arrow"></text>
@@ -157,11 +157,11 @@
     <text class="sheet-title">选代金券</text>
     <text class="sheet-close" bindtap="closeCoupons">×</text>
   </view>
-  <view class="faint small sheet-tip">一单只能用一张，可以和赠饮券一起用</view>
+  <view class="faint small sheet-tip">饮品券、小食券可以一起用，同一类券一单只能用一张，也能和赠饮券一起用</view>
   <view
     wx:for="{{quote.coupons}}"
     wx:key="id"
-    class="coupon {{item.discount ? '' : 'off'}} {{quote.coupon && quote.coupon.id === item.id ? 'on' : ''}}"
+    class="coupon {{item.discount ? '' : 'off'}} {{item.picked ? 'on' : ''}}"
     data-id="{{item.id}}"
     data-ok="{{item.discount > 0}}"
     data-reason="{{item.reason}}"
@@ -173,8 +173,12 @@
       <view class="faint small">{{f.couponRule(item)}} · {{f.shortDay(item.expiresDay)}} 到期</view>
       <view class="gold small" wx:if="{{item.scope}}">{{item.scope}}</view>
       <view class="small coupon-reason" wx:if="{{!item.discount}}">{{item.reason || '未满足条件'}}</view>
+      <view class="faint small" wx:elif="{{item.clash}}">选它会换掉「{{item.clash}}」</view>
     </view>
-    <text class="gold coupon-check" wx:if="{{quote.coupon && quote.coupon.id === item.id}}">✓</text>
+    <text class="gold coupon-check" wx:if="{{item.picked}}">✓</text>
   </view>
-  <view class="btn-ghost btn-block no-coupon" data-id="" bindtap="pickCoupon">不使用代金券</view>
+  <view class="row coupon-actions">
+    <view class="btn-ghost flex-1" bindtap="noCoupon">不使用代金券</view>
+    <view class="btn-gold flex-1" bindtap="closeCoupons">好了</view>
+  </view>
 </view>

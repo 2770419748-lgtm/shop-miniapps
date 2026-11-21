@@ -93,9 +93,9 @@
         <text class="muted">集星兑换（{{order.starRedeem.name}}，{{order.starRedeem.stars}} 颗星）</text>
         <text class="gold">-¥{{f.yuan(order.starFee)}}</text>
       </view>
-      <view class="row-between sub-row" wx:if="{{order.coupon}}">
-        <text class="muted">代金券（{{order.coupon.title}}）</text>
-        <text class="gold">-¥{{f.yuan(order.coupon.discount)}}</text>
+      <view class="row-between sub-row" wx:for="{{order.coupons}}" wx:key="id">
+        <text class="muted">代金券（{{item.title}}）</text>
+        <text class="gold">-¥{{f.yuan(item.discount)}}</text>
       </view>
     </block>
     <view class="row-between total-row">
