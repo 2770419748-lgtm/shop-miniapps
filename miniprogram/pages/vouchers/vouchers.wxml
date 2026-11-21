@@ -18,7 +18,7 @@
     </view>
     <view class="btn-gold btn-small" bindtap="goMenu">去点单</view>
   </view>
-  <view class="faint tip" wx:if="{{usable.length}}">点单结算时会自动用上，不用出示。代金券一单用一张，可以和赠饮券一起用；写了「限……可用」的只能抵那些商品。</view>
+  <view class="faint tip" wx:if="{{usable.length}}">点单结算时会自动用上，不用出示。写了「限……可用」的只能抵那些商品；饮品券、小食券这样各抵各的可以同一单一起用，同一类一单只能用一张。</view>
 
   <view class="empty" wx:if="{{loading}}">加载中…</view>
   <view class="empty" wx:elif="{{!usable.length}}">

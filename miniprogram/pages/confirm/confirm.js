@@ -24,7 +24,7 @@ Page({
     tableNo: '',
     mode: 'dine_in',
     remark: '',
-    quote: null, // 服务器算的价 { total, vouchers, applied, voucherFee, stars, starFee, coupons, coupon, couponFee, payFee, pay, wallet, reserve }
+    quote: null, // 服务器算的价 { total, vouchers, applied, voucherFee, stars, starFee, coupons, usedCoupons, couponFee, payFee, pay, wallet, reserve }
     useVouchers: true,
     useStars: false, // 用星免费换一杯：顾客自己打开
     usableCoupons: 0,
@@ -45,7 +45,8 @@ Page({
   },
 
   onLoad() {
-    // couponChoice：不设表示让服务器自动挑；'' 表示不用；或者某张券的 id
+    // couponChoice：不设表示让服务器自动挑一组；或者顾客选的券 id 数组（空数组是不用）。
+    // 各管各的券（饮品券、小食券）能一起用，能用在同一样商品上的只能用一张，由服务器挑
     this.couponChoice = undefined
     // 收货地址：不设表示让服务器用默认地址
     this.addressId = ''
@@ -95,13 +96,18 @@ Page({
     if (!this.data.list.length) return
     const { useVouchers, useStars, reserving, reserveAt, delivering } = this.data
     const params = { items: this.items(), noVouchers: !useVouchers, reserve: reserving, useStars }
-    if (this.couponChoice !== undefined) params.couponId = this.couponChoice
+    params.couponIds = this.couponChoice === undefined ? 'auto' : this.couponChoice
     if (reserving && reserveAt) params.reserveAt = reserveAt
     if (delivering) {
       params.delivery = true
       if (this.addressId) params.addressId = this.addressId
     }
     return api.coffee('quote', params).then((quote) => {
+      // 服务器还是旧版时只有 coupon 一张
+      if (!quote.usedCoupons) {
+        quote.usedCoupons = quote.coupon ? [quote.coupon] : []
+        quote.coupons.forEach((c) => { c.picked = !!quote.coupon && quote.coupon.id === c.id })
+      }
       if (delivering && !quote.delivery.enabled) {
         delivery.off()
         this.setData({ delivering: false, mode: 'takeaway', address: null, drop: null })
@@ -196,13 +202,24 @@ Page({
     this.setData({ showCoupons: false })
   },
 
+  // 点一张券：用上的就去掉，没用上的加上（和它撞了的那张由服务器换掉）；弹层不关，可以接着选
   pickCoupon(e) {
     const { id, ok, reason } = e.currentTarget.dataset
-    if (id && !ok) {
-      wx.showToast({ title: reason || '这单还不满足这张券的条件', icon: 'none' })
-      return
+    const used = this.data.quote.usedCoupons.map((c) => c.id)
+    if (used.indexOf(id) !== -1) {
+      this.couponChoice = used.filter((x) => x !== id)
+    } else {
+      if (!ok) {
+        wx.showToast({ title: reason || '这单还不满足这张券的条件', icon: 'none' })
+        return
+      }
+      this.couponChoice = [id].concat(used)
     }
-    this.couponChoice = id || ''
+    this.requote()
+  },
+
+  noCoupon() {
+    this.couponChoice = []
     this.setData({ showCoupons: false })
     this.requote()
   },
@@ -259,7 +276,8 @@ Page({
       tableNo: !reserving && !delivering && mode === 'dine_in' ? tableNo : '',
       remark,
       voucherIds: useVouchers ? quote.applied.map((a) => a.id) : [],
-      couponId: quote.coupon ? quote.coupon.id : '',
+      couponIds: quote.usedCoupons.map((c) => c.id),
+      couponId: quote.usedCoupons.length ? quote.usedCoupons[0].id : '', // 服务器还是旧版时只认这一张
       useStars: !!(quote.stars && quote.stars.used)
     }
     if (reserving) params.reserveAt = reserveAt

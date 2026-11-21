@@ -68,6 +68,8 @@ Page({
 
   load() {
     return api.coffee('getOrder', { id: this.id }).then((order) => {
+      // 一单可以用几张代金券；服务器还是旧版时只有 coupon 一张
+      if (!order.coupons) order.coupons = order.coupon ? [order.coupon] : []
       this.setData({ order, step: stepOf(order), statusText: order.delivery ? deliveryText(order) : '', loading: false })
     }).catch((err) => {
       this.setData({ loading: false })

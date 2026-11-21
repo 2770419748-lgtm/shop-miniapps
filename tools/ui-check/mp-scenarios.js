@@ -27,6 +27,14 @@ const addTwo = async ({ frame, idle }) => {
   await frame.locator('.add-btn').first().click(); await idle()
 }
 
+// 购物车放一杯美式、一块芝士蛋糕
+const addDrinkCake = async ({ frame, idle }) => {
+  await frame.click('text=选规格'); await idle()
+  await frame.click('text=加入购物车'); await idle()
+  await frame.locator('text=甜点').first().click(); await idle()
+  await frame.locator('.goods-item', { hasText: '芝士蛋糕' }).locator('.add-btn').click(); await idle()
+}
+
 module.exports = async (port) => {
   const c1 = await as(port, 'C1')
   const owner = await as(port, 'OWNER')
@@ -53,6 +61,9 @@ module.exports = async (port) => {
   const deliveryOrder = find(list, (o) => o.mode === 'delivery')
   const dineOrder = find(list, (o) => o.mode === 'dine_in')
   const takeOrder = find(list, (o) => o.mode === 'takeaway')
+  // C3 有一单用了两张代金券（饮品券 + 小食券）
+  const c3orders = await (await as(port, 'C3'))('coffee', 'myOrders')
+  const couponsOrder = find(c3orders.list || c3orders.orders || c3orders, (o) => (o.coupons || []).length > 1)
   const S = []
   const add = (s) => S.push(s)
   // 顾客
@@ -72,6 +83,7 @@ module.exports = async (port) => {
   if (dineOrder) add({ name: 'c-order-dine', page: 'pages/order-detail/order-detail', user: 'C1', q: { id: dineOrder._id }, full: true })
   if (deliveryOrder) add({ name: 'c-order-delivery', page: 'pages/order-detail/order-detail', user: 'C1', q: { id: deliveryOrder._id }, full: true })
   if (takeOrder) add({ name: 'c-order-take', page: 'pages/order-detail/order-detail', user: 'C1', q: { id: takeOrder._id }, full: true })
+  if (couponsOrder) add({ name: 'c-order-coupons', page: 'pages/order-detail/order-detail', user: 'C3', q: { id: couponsOrder._id }, full: true })
   add({ name: 'c-mine', page: 'pages/mine/mine', user: 'C1', full: true })
   add({ name: 'c-mine-owner', page: 'pages/mine/mine', user: 'OWNER', full: true })
   add({ name: 'c-bind-owner', page: 'pages/bind/bind', user: 'C9', q: { type: 'owner' } })
@@ -147,6 +159,9 @@ module.exports = async (port) => {
   A('star-settings', 'star-settings')
   // 弹层
   add({ name: 'x-confirm-coupons', page: 'pages/confirm/confirm', user: 'C1', prep: [{ page: 'pages/menu/menu', act: addTwo }], act: async ({ frame }) => { await frame.click('text=代金券') } })
+  // 美式 + 芝士蛋糕：基础饮品券和小食券一起用上，新人券写着选它会换掉哪两张
+  add({ name: 'c-confirm-two-coupons', page: 'pages/confirm/confirm', user: 'C1', prep: [{ page: 'pages/menu/menu', act: addDrinkCake }], full: true })
+  add({ name: 'x-confirm-two-coupons', page: 'pages/confirm/confirm', user: 'C1', prep: [{ page: 'pages/menu/menu', act: addDrinkCake }], act: async ({ frame }) => { await frame.click('text=代金券') } })
   add({ name: 'x-menu-spec3', page: 'pages/menu/menu', user: 'C2', act: async ({ frame, idle }) => { await addTwo({ frame, idle }); await frame.click('text=非咖啡'); await idle(); await frame.locator('text=选规格').first().click() } })
   add({ name: 'x-menu-spec3-se', w: 320, h: 568, safe: 0, page: 'pages/menu/menu', user: 'C2', act: async ({ frame, idle }) => { await frame.click('text=非咖啡'); await idle(); await frame.locator('text=选规格').first().click() } })
   add({ name: 'x-staff-invite', page: 'admin/pages/staff/staff', user: 'OWNER', act: async ({ frame, idle, page }) => { await frame.click('text=+ 邀请员工'); await idle(); const ok = page.locator('.sheet div').first(); if (await ok.count()) await ok.click() } })

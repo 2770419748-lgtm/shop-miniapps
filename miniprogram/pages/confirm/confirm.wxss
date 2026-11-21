@@ -89,8 +89,9 @@
   margin-top: 4rpx;
   color: var(--danger);
 }
-.no-coupon {
+.coupon-actions {
   margin-top: 8rpx;
+  gap: 20rpx;
 }
 .address-card {
   border-color: var(--gold);

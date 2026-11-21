@@ -162,7 +162,7 @@ function couponDiscount(coupon, cart) {
   return Math.min(coupon.amount, left)
 }
 
-// 一单最多用一张代金券。couponId 不传时自动挑抵得最多的（一样多就挑先过期的）；传 '' 表示不用；
+// 只用一张代金券（1.0.1 及以前的小程序这样算）。couponId 不传时自动挑抵得最多的（一样多就挑先过期的）；传 '' 表示不用；
 // 传了某张但用不上，也当作不用。cart 见 couponBase。返回 { coupon, discount }
 function pickCoupon(coupons, cart, couponId) {
   if (couponId === '') return { coupon: null, discount: 0 }
@@ -179,4 +179,78 @@ function pickCoupon(coupons, cart, couponId) {
   return { coupon: best, discount: bestValue }
 }
 
-module.exports = { MAX_PRICE, isFen, buildLines, sanitizeSpecs, applyVouchers, couponLimited, couponFits, couponBase, couponDiscount, pickCoupon }
+// 一单可以用几张代金券，只要各管各的商品：比如饮品券抵饮品、小食券抵小食。
+// 两张券在这一单里能用在同一样商品上（两张饮品券，或者全场券和任何别的券）就算「撞了」，只能用其中一张。
+const MAX_COUPONS = 10
+
+// 这张券在这一单里能用在哪几样商品（productId）。cart 是一个数的老写法不知道商品，返回 null（当作撞）
+function couponFitIds(coupon, cart) {
+  if (!cart || typeof cart === 'number') return null
+  const ids = []
+  ;(cart.lines || []).forEach((l) => {
+    if (couponFits(coupon, l) && ids.indexOf(l.productId) === -1) ids.push(l.productId)
+  })
+  return ids
+}
+
+function idsClash(a, b) {
+  if (!a || !b) return true
+  return a.some((id) => b.indexOf(id) !== -1)
+}
+
+// 两张券在这一单里撞不撞
+function couponsClash(a, b, cart) {
+  return idsClash(couponFitIds(a, cart), couponFitIds(b, cart))
+}
+
+// 按给的顺序用券：用不上的、和前面已经用上的券撞了的跳过。返回 { picked: [{ coupon, discount }], discount }
+function stackCoupons(list, cart) {
+  const picked = []
+  let left = typeof cart === 'number' ? cart : cart.left
+  ;(list || []).forEach((c) => {
+    if (!c || picked.length >= MAX_COUPONS) return
+    if (picked.some((p) => p.coupon._id === c._id || couponsClash(p.coupon, c, cart))) return
+    const discount = Math.min(couponDiscount(c, cart), left)
+    if (!(discount > 0)) return
+    picked.push({ coupon: c, discount })
+    left -= discount
+  })
+  return { picked, discount: picked.reduce((sum, p) => sum + p.discount, 0) }
+}
+
+// 一样多时挑哪张：先过期的
+function betterCoupon(a, b) {
+  if (a.discount !== b.discount) return a.discount > b.discount
+  return String(a.coupon.expiresDay || '') < String(b.coupon.expiresDay || '')
+}
+
+// 自动挑一组抵得最多的券（互相不撞）。抵得一样多时少用几张，留着下次用。
+// 先按「能用在哪几样商品」分组，每组只留抵得最多的一张；组不多（一般就饮品、小食几组）就全试一遍，多了就从大到小挑。
+function bestCoupons(coupons, cart) {
+  const groups = {}
+  ;(coupons || []).forEach((c) => {
+    const discount = couponDiscount(c, cart)
+    if (!(discount > 0)) return
+    const ids = couponFitIds(c, cart)
+    const key = ids ? ids.slice().sort().join(',') : '*'
+    const item = { coupon: c, discount, ids }
+    if (!groups[key] || betterCoupon(item, groups[key])) groups[key] = item
+  })
+  const list = Object.keys(groups).map((k) => groups[k]).sort((a, b) => (betterCoupon(a, b) ? -1 : 1))
+  if (list.length > 12) return stackCoupons(list.map((g) => g.coupon), cart)
+  let best = []
+  let bestValue = 0
+  for (let mask = 1; mask < (1 << list.length); mask++) {
+    const chosen = list.filter((g, i) => mask & (1 << i))
+    if (chosen.length > MAX_COUPONS) continue
+    if (chosen.some((g, i) => chosen.some((h, j) => j > i && idsClash(g.ids, h.ids)))) continue
+    const value = chosen.reduce((sum, g) => sum + g.discount, 0)
+    if (value > bestValue || (value === bestValue && chosen.length < best.length)) {
+      best = chosen
+      bestValue = value
+    }
+  }
+  return stackCoupons(best.map((g) => g.coupon), cart)
+}
+
+module.exports = { MAX_PRICE, MAX_COUPONS, isFen, buildLines, sanitizeSpecs, applyVouchers, couponLimited, couponFits, couponBase, couponDiscount, pickCoupon, couponsClash, stackCoupons, bestCoupons }
