@@ -311,7 +311,12 @@
   }
   const convertStyle = (s) => String(s).replace(/(-?\d*\.?\d+)rpx/g, (m, n) => px(+n)).replace(/(?:env|constant)\(\s*safe-area-inset-bottom\s*\)/g, SAFE + 'px')
 
+  // 小程序写的字体（-apple-system / PingFang SC / Helvetica Neue）在 Linux 上都没有，各台机器会落到不同的字体上，
+  // 同一页面本机和 GitHub 上量出来的宽高就不一样。这里统一指到文泉驿正黑（playwright install --with-deps 会装）。
   const BASE = `
+@font-face { font-family: "-apple-system"; src: local("WenQuanYi Zen Hei"), local("WenQuanYiZenHei"); }
+@font-face { font-family: "PingFang SC"; src: local("WenQuanYi Zen Hei"), local("WenQuanYiZenHei"); }
+@font-face { font-family: "Helvetica Neue"; src: local("WenQuanYi Zen Hei"), local("WenQuanYiZenHei"); }
 html { height: 100%; -webkit-text-size-adjust: 100%; }
 body { margin: 0; font-size: 16px; font-family: -apple-system, "PingFang SC", "WenQuanYi Zen Hei", sans-serif; -webkit-font-smoothing: antialiased; }
 ::-webkit-scrollbar { display: none; width: 0; height: 0; }

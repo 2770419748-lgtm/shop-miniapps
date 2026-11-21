@@ -130,7 +130,7 @@ async function runMp(browser, report) {
         const sc = Object.assign({}, s, { w: size.w, h: size.h }, size.safe !== undefined ? { safe: size.safe } : {})
         const issues = await shootMp(browser, sc, dir)
         report.push({ group: size.tag, name: s.name, shot: path.relative(OUT, path.join(dir, s.name + '.png')), issues })
-        console.log(size.tag, s.name, issues.length ? issues.length + ' 个问题' : 'ok')
+        log(size.tag, s.name, issues)
       }
     }
   } finally {
@@ -197,12 +197,23 @@ async function runWeb(browser, report) {
         if (FILTER && sc.name.indexOf(FILTER) === -1) continue
         const issues = await shootWeb(browser, state, sc, size, dir)
         report.push({ group: size.tag, name: sc.name, shot: path.relative(OUT, path.join(dir, sc.name + '.png')), issues })
-        console.log(size.tag, sc.name, issues.length ? issues.length + ' 个问题' : 'ok')
+        log(size.tag, sc.name, issues)
       }
     }
   } finally {
     server.kill()
   }
+}
+
+function line(i) {
+  return (RULES[i.rule] || i.rule) + '：「' + i.text + '」' + (i.detail ? ' ' + i.detail : '')
+}
+
+// 每个画面一行；有问题的把问题也打出来，GitHub Actions 的日志里直接能看
+function log(group, name, issues) {
+  const left = issues.filter((i) => !allowed(group, name, i))
+  console.log(group, name, left.length ? left.length + ' 个问题' : 'ok')
+  left.forEach((i) => console.log('    - ' + line(i)))
 }
 
 function allowed(group, name, issue) {
@@ -226,12 +237,14 @@ function allowed(group, name, issue) {
     if (!r.issues.length) return
     bad += r.issues.length
     lines.push('## ' + r.group + ' / ' + r.name + '（' + r.shot + '）')
-    r.issues.forEach((i) => lines.push('- ' + (RULES[i.rule] || i.rule) + '：「' + i.text + '」' + (i.detail ? ' ' + i.detail : '')))
+    r.issues.forEach((i) => lines.push('- ' + line(i)))
     lines.push('')
   })
   lines.splice(3, 0, report.length + ' 个画面，' + (bad ? bad + ' 个问题。' : '没有问题。'), '')
   fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify(report, null, 2))
   fs.writeFileSync(path.join(OUT, 'report.md'), lines.join('\n'))
+  // 在 GitHub Actions 里跑时，报告也贴到这次运行的摘要页上
+  if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n')
   console.log('\n' + report.length + ' 个画面，' + (bad ? bad + ' 个问题，见 ' + path.join(OUT, 'report.md') : '没有问题'))
   process.exit(bad ? 1 : 0)
 })().catch((e) => {
