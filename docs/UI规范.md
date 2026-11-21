@@ -90,6 +90,8 @@ onBarScroll(e) { chipBar.onScroll(this, e) }
 
 **3.2 短文字不能被挤成两行**：标签、按钮、名字、表头这类 8 个字以内的文字，给它 `flex-shrink: 0` 或 `white-space: nowrap`，让旁边长的那段去省略或换行。（渲染检查 wrap）
 
+- 表单左边的标签 `.field-label` 是固定宽度 160rpx，放得下 4 个字。页面里有 5 个字以上的标签（比如「价格（元）」「送多少（元）」），在这个页面的 wxss 里把 `.field-label` 调成 `width: 200rpx`（放得下 6 个字），整页的输入框还是对齐的。宽度要比字多留半个字，刚好塞满的到了别的手机字体上就会挤成两行。（静态检查）
+
 **3.3 多行截断**用 `display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden`。
 
 **3.4 按最长的数据设计**：商品名、书名、分类名、备注、地址都是店主或顾客自己填的。预览数据（`admin-web/mock/seed.js`、`tools/ui-check/mp-scenarios.js`）里要有长名字，界面要么省略、要么换行，不能溢出。

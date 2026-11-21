@@ -172,6 +172,41 @@ PROGRAMS.forEach((name) => {
     })
     assert.deepEqual(bad, [])
   })
+
+  test(name + '：表单左边的标签（.field-label）宽度放得下文字，至少再留半个字（规范 3.2）', () => {
+    // 2026-11-21 商品编辑页「价格（元）」：5 个字刚好塞满 160rpx，换台机器、换个字体就挤成两行
+    const rpx = (v) => { const m = /^(-?\d*\.?\d+)rpx$/.exec(String(v || '').trim()); return m ? +m[1] : null }
+    const pageFont = rpx((appRules.find((r) => /(^|,)\s*page\s*(,|$)/.test(r.selector) && r.decls['font-size']) || { decls: {} }).decls['font-size']) || 28
+    const textWidth = (t, font) => Array.from(t).reduce((w, ch) => w + (/[\u0000-\u00ff]/.test(ch) ? font * 0.6 : font), 0)
+    const bad = []
+    wxml.forEach((f) => {
+      const page = f.replace(/\.wxml$/, '.wxss')
+      const rules = appRules.concat(fs.existsSync(page) ? parseCss(read(page)) : []).filter((r) => targets(r.selector, 'field-label'))
+      const last = (prop) => rules.reduce((v, r) => (r.decls[prop] !== undefined ? r.decls[prop] : v), undefined)
+      const width = rpx(last('width'))
+      if (width === null) return
+      const padding = String(last('padding') || '0').trim().split(/\s+/)
+      const padRight = rpx(last('padding-right')) ?? rpx(padding[1] || padding[0]) ?? 0
+      const font = rpx(last('font-size')) || pageFont
+      const src = read(f)
+      const re = /<(text|view)\b([^>]*\bclass\s*=\s*"[^"]*field-label[^"]*"[^>]*)>([\s\S]*?)<\/\1>/g
+      let m
+      while ((m = re.exec(src))) {
+        const cls = /class\s*=\s*"([^"]*)"/.exec(m[2])
+        if (!cls || staticClasses(cls[1]).indexOf('field-label') === -1) continue
+        const inner = m[3].replace(/<[^>]+>/g, '').trim()
+        const outside = inner.replace(/\{\{[\s\S]*?\}\}/g, '')
+        const literals = []
+        inner.replace(/\{\{([\s\S]*?)\}\}/g, (x, expr) => expr.replace(/'([^']*)'|"([^"]*)"/g, (y, a, b) => literals.push(a !== undefined ? a : b)))
+        const texts = literals.length ? literals.map((l) => outside + l) : [outside]
+        texts.forEach((t) => {
+          const need = textWidth(t, font) + padRight + font / 2
+          if (t && need > width) bad.push(rel(f) + ':' + src.slice(0, m.index).split('\n').length + ' 「' + t + '」要 ' + Math.ceil(need) + 'rpx，.field-label 只有 ' + width + 'rpx 宽（在页面 wxss 里把 .field-label 的 width 调大）')
+        })
+      }
+    })
+    assert.deepEqual(bad, [])
+  })
 })
 
 // 电脑网页后台
