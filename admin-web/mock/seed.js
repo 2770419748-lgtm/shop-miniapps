@@ -24,6 +24,11 @@ module.exports = async function seed(as, db) {
   await ok(owner.common('saveBanner', { banner: { kind: 'coupons', subtitle: '满 30 减 5，先到先得' } }))
   const c30 = await ok(owner.coffee('saveCoupon', { coupon: { amount: 500, minSpend: 3000, validDays: 7, total: 100, perUser: 1 } }))
   await ok(owner.coffee('saveCoupon', { coupon: { title: '新人券', amount: 300, validDays: 3, perUser: 1 } }))
+  // 限品类的券：小食券只能买甜点；基础饮品券只在充值时送，只能抵美式、拿铁、柠檬茶
+  const catOf = (n) => menu.categories.find((c) => c.name === n)._id
+  const snackCoupon = await ok(owner.coffee('saveCoupon', { coupon: { title: '小食立减4元券（薯条/鸡米花', amount: 400, minSpend: 1200, validDays: 60, perUser: 1, categoryIds: [catOf('甜点')] } }))
+  const drinkCoupon = await ok(owner.coffee('saveCoupon', { coupon: { title: '基础饮品券', amount: 1800, validDays: 90, giftOnly: true, productIds: [byName('美式')._id, byName('拿铁')._id, byName('柠檬茶')._id] } }))
+  await ok(customers[0].coffee('claimCoupon', { id: snackCoupon.id }))
   await ok(customers[1].coffee('claimCoupon', { id: c30.id }))
   await ok(customers[2].coffee('claimCoupon', { id: c30.id }))
   const o1 = await ok(customers[0].coffee('createOrder', { mode: 'dine_in', tableNo: '5', remark: '少冰', items: [{ productId: byName('拿铁')._id, qty: 2, specs: cup }, { productId: byName('芝士蛋糕')._id, qty: 1 }] }))
@@ -47,9 +52,9 @@ module.exports = async function seed(as, db) {
   await ok(owner.book('markRentalPaid', { id: r2.id }))
   await ok(customers[1].book('createRental', { bookId: shelf.books[0]._id, ruleId: hourly._id, hours: 1, remark: '靠窗位' }))
 
-  // 会员储值：两个档位，C1 在吧台充了 300 送 100，用余额点了一单；C4 是没充过钱的
-  const p300 = await ok(owner.member('savePlan', { plan: { price: 30000, bonus: 10000, memberDays: 365, desc: '送一年会员' } }))
-  await ok(owner.member('savePlan', { plan: { price: 50000, bonus: 20000, memberDays: 365, desc: '最划算' } }))
+  // 会员储值：两个档位（都送券），C1 在吧台充了 300 送 100（送了一张基础饮品券），用余额点了一单；C4 是没充过钱的
+  const p300 = await ok(owner.member('savePlan', { plan: { price: 30000, bonus: 10000, memberDays: 365, desc: '送一年会员', gifts: [{ couponId: drinkCoupon.id, count: 1 }] } }))
+  await ok(owner.member('savePlan', { plan: { price: 50000, bonus: 20000, memberDays: 365, desc: '最划算', gifts: [{ couponId: drinkCoupon.id, count: 2 }, { couponId: snackCoupon.id, count: 1 }] } }))
   await ok(owner.member('saveMemberSettings', { enabled: true, freeCategories: ['漫画'], notice: '储值金额（含赠送）只能在店里点单、借书时使用，不能提现。' }))
   await ok(owner.book('saveBook', { book: { title: '海贼王 1', author: '尾田荣一郎', category: '漫画', copies: 2 } }))
   const m1 = await ok(customers[0].member('getMember'))

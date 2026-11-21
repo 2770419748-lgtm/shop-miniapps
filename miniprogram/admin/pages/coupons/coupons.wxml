@@ -2,16 +2,22 @@
 
 <view wx:if="{{ready}}">
   <view class="page">
-    <view class="faint intro">顾客在首页「领券中心」自己领，下单时自动抵扣，一单用一张，可以和赠饮券一起用。关掉「发放」后顾客领不到了，已经领的照样能用。</view>
+    <view class="faint intro">顾客在首页「领券中心」自己领，或者充值时送（在「储值设置」的档位里选）。下单时自动抵扣，一单用一张，可以和赠饮券一起用。可以限定只能用在哪些分类、商品上。关掉「发放」后顾客领不到了，已经领的照样能用。</view>
 
-    <view wx:for="{{coupons}}" wx:key="_id" class="card coupon {{item.enabled ? '' : 'off'}}" data-id="{{item._id}}" bindtap="edit">
+    <view wx:for="{{coupons}}" wx:key="_id" class="card coupon {{item.enabled || item.giftOnly ? '' : 'off'}}" data-id="{{item._id}}" bindtap="edit">
       <view class="amount"><text class="yen">¥</text>{{f.yuan(item.amount)}}</view>
       <view class="flex-1 info">
         <view class="title">{{item.title}}</view>
-        <view class="muted small">{{f.couponRule(item)}} · 领取后 {{item.validDays}} 天有效 · 每人 {{item.perUser}} 张</view>
-        <view class="faint small">已领 {{item.claimed}}{{item.total ? ' / ' + item.total : '（不限量）'}} · 已用 {{item.used}}</view>
+        <view class="muted small">{{f.couponRule(item)}} · {{item.scope || '全部商品可用'}}</view>
+        <view class="muted small" wx:if="{{item.giftOnly}}">送出后 {{item.validDays}} 天有效</view>
+        <view class="muted small" wx:else>领取后 {{item.validDays}} 天有效 · 每人 {{item.perUser}} 张</view>
+        <view class="faint small" wx:if="{{item.giftOnly}}">充值送出 {{item.gifted || 0}} · 已用 {{item.used}}</view>
+        <view class="faint small" wx:else>已领 {{item.claimed}}{{item.total ? ' / ' + item.total : '（不限量）'}}{{item.gifted ? ' · 充值送出 ' + item.gifted : ''}} · 已用 {{item.used}}</view>
       </view>
-      <view class="side" catchtap="noop">
+      <view class="side" wx:if="{{item.giftOnly}}">
+        <text class="tag gold">充值时送</text>
+      </view>
+      <view class="side" wx:else catchtap="noop">
         <switch class="switch" checked="{{item.enabled}}" color="#d6b25e" data-id="{{item._id}}" bindchange="toggle" />
         <text class="faint small">{{item.enabled ? '发放中' : '已停发'}}</text>
       </view>

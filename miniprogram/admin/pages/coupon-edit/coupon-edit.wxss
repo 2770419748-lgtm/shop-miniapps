@@ -1,3 +1,6 @@
+.small {
+  font-size: 24rpx;
+}
 .field-label {
   width: 200rpx;
 }
@@ -5,6 +8,22 @@
   font-size: 24rpx;
   margin: 0 8rpx 8rpx;
   line-height: 1.6;
+}
+.tip {
+  line-height: 1.6;
+}
+.pick-head {
+  margin: 8rpx 0 16rpx;
+}
+.group-name {
+  margin-bottom: 12rpx;
+}
+/* 商品名是店主填的，最长 30 个字：一行放不下就省略 */
+.pick {
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .save {
   margin: 24rpx 0 20rpx;

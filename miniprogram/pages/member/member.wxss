@@ -142,6 +142,13 @@
   color: var(--gold);
   font-size: 22rpx;
 }
+.plan-gift {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  line-height: 1.4;
+  color: var(--text-2);
+  word-break: break-all;
+}
 .plan-desc {
   margin-top: 8rpx;
   font-size: 22rpx;

@@ -25,7 +25,7 @@
     </el-card>
 
     <div class="toolbar">
-      <span class="tip">充值档位：顾客付多少、送多少、送几天会员。会员天数从充值当天算第 1 天，已经是会员的从原来的到期日往后加。</span>
+      <span class="tip">充值档位：顾客付多少、送多少、送几天会员、送哪些代金券。会员天数从充值当天算第 1 天，已经是会员的从原来的到期日往后加。送的券在充值成功（在线付款或吧台代充）时自动发到顾客的「我的券」。</span>
       <span class="spacer"></span>
       <el-button type="primary" @click="openEdit(null)">新增档位</el-button>
     </div>
@@ -46,6 +46,12 @@
       <el-table-column label="送" width="100"><template #default="{ row }">¥{{ yuan(row.bonus) }}</template></el-table-column>
       <el-table-column label="到账" width="100"><template #default="{ row }">¥{{ yuan(row.price + row.bonus) }}</template></el-table-column>
       <el-table-column label="送会员" width="100"><template #default="{ row }">{{ row.memberDays ? row.memberDays + ' 天' : '不送' }}</template></el-table-column>
+      <el-table-column label="送券" min-width="200">
+        <template #default="{ row }">
+          <div v-for="g in row.gifts" :key="g.couponId" class="gift-line">{{ g.title }} × {{ g.count }}</div>
+          <span v-if="!row.gifts.length" class="muted">不送</span>
+        </template>
+      </el-table-column>
       <el-table-column label="上架" width="80">
         <template #default="{ row }"><el-switch :model-value="row.enabled" @change="(v) => setEnabled(row, v)" /></template>
       </el-table-column>
@@ -57,7 +63,7 @@
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="dialog" :title="plan._id ? '编辑充值档位' : '新增充值档位'" width="500px" :close-on-click-modal="false">
+    <el-dialog v-model="dialog" :title="plan._id ? '编辑充值档位' : '新增充值档位'" width="560px" :close-on-click-modal="false">
       <el-form label-width="110px">
         <el-form-item label="充多少（元）" required>
           <el-input-number v-model="plan.priceYuan" :min="0.01" :max="10000" :precision="2" :step="50" />
@@ -70,6 +76,21 @@
           <el-input-number v-model="plan.memberDays" :min="0" :max="3650" :step="30" />
           <span class="muted small sep">一年填 365，0 就是不送</span>
         </el-form-item>
+        <el-form-item label="送代金券">
+          <div class="full">
+            <div v-for="(g, i) in plan.gifts" :key="i" class="gift-row">
+              <el-select v-model="g.couponId" placeholder="选一张券" class="gift-pick">
+                <el-option v-for="c in coupons" :key="c._id" :label="couponLabel(c)" :value="c._id" />
+              </el-select>
+              <el-input-number v-model="g.count" :min="1" :max="20" size="small" />
+              <span class="muted small">张</span>
+              <el-button link @click="plan.gifts.splice(i, 1)">去掉</el-button>
+            </div>
+            <el-button size="small" :disabled="!coupons.length || plan.gifts.length >= 5" @click="plan.gifts.push({ couponId: '', count: 1 })">+ 加一种券</el-button>
+            <div class="muted small" v-if="!coupons.length">还没有代金券。先到「代金券」里新增，比如「基础饮品券」，怎么发选「只在充值时送」。</div>
+            <div class="muted small" v-else>券的金额、能用在哪些商品、有效天数在「代金券」里设。</div>
+          </div>
+        </el-form-item>
         <el-form-item label="名称">
           <el-input v-model="plan.title" maxlength="16" show-word-limit :placeholder="autoTitle" />
         </el-form-item>
@@ -78,7 +99,7 @@
         </el-form-item>
         <el-form-item label="上架"><el-switch v-model="plan.enabled" /></el-form-item>
       </el-form>
-      <div class="tip">改金额只影响以后的充值，已经充进去的钱不变。</div>
+      <div class="tip">改金额、送券只影响以后的充值，已经充进去的钱、送出去的券不变。</div>
       <template #footer>
         <el-button @click="dialog = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="savePlan">保存</el-button>
@@ -99,8 +120,13 @@ const form = ref({ enabled: false, freeCategories: [], notice: '' })
 const categories = ref([])
 const plans = ref([])
 const payEnabled = ref(false)
+const coupons = ref([])
 const dialog = ref(false)
 const plan = ref({})
+
+function couponLabel(c) {
+  return c.title + '（¥' + yuan(c.amount) + (c.scope ? '，' + c.scope : '') + (c.giftOnly ? '' : '，领券中心也能领') + '）'
+}
 
 const fen = (v) => Math.round(Number(v || 0) * 100)
 const autoTitle = computed(() => {
@@ -119,6 +145,7 @@ async function load(first) {
     categories.value = all
     plans.value = res.plans
     payEnabled.value = res.payEnabled
+    coupons.value = res.coupons || []
   } catch (e) {
     ElMessage.error(e.message)
   } finally {
@@ -170,15 +197,18 @@ function openEdit(row) {
     memberDays: p.memberDays || 0,
     title: row ? p.title : '',
     desc: p.desc || '',
-    enabled: p.enabled !== false
+    enabled: p.enabled !== false,
+    gifts: (p.gifts || []).map((g) => ({ couponId: g.couponId, count: g.count }))
   }
   dialog.value = true
 }
 
 async function savePlan() {
   const p = plan.value
-  const data = { price: fen(p.priceYuan), bonus: fen(p.bonusYuan), memberDays: p.memberDays || 0, title: p.title.trim(), desc: p.desc.trim(), enabled: p.enabled }
+  const gifts = p.gifts.filter((g) => g.couponId).map((g) => ({ couponId: g.couponId, count: g.count || 1 }))
+  const data = { price: fen(p.priceYuan), bonus: fen(p.bonusYuan), memberDays: p.memberDays || 0, title: p.title.trim(), desc: p.desc.trim(), enabled: p.enabled, gifts }
   if (!data.price) return ElMessage.warning('请填写充值金额')
+  if (new Set(gifts.map((g) => g.couponId)).size !== gifts.length) return ElMessage.warning('同一张券选了两次，合成一行改张数就好')
   if (p._id) data._id = p._id
   saving.value = true
   try {
@@ -216,4 +246,7 @@ onMounted(() => load(true))
 .sep { margin-left: 10px; }
 .full { width: 100%; }
 .tip { margin-top: 4px; }
+.gift-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.gift-pick { flex: 1; min-width: 200px; }
+.gift-line { line-height: 1.6; }
 </style>

@@ -81,6 +81,7 @@
     <view class="flex-1">
       <view class="plan-title">{{item.title}}</view>
       <view class="faint small">收 ¥{{f.yuan(item.price)}}，到账 ¥{{f.yuan(item.price + item.bonus)}}<text wx:if="{{item.memberDays}}">，送 {{item.memberDays}} 天会员</text></view>
+      <view class="gold small" wx:if="{{item.giftText}}">{{item.giftText}}</view>
     </view>
     <text class="cell-arrow"></text>
   </view>

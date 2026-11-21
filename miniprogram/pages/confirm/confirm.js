@@ -197,9 +197,9 @@ Page({
   },
 
   pickCoupon(e) {
-    const { id, ok } = e.currentTarget.dataset
+    const { id, ok, reason } = e.currentTarget.dataset
     if (id && !ok) {
-      wx.showToast({ title: '这单还不满足这张券的条件', icon: 'none' })
+      wx.showToast({ title: reason || '这单还不满足这张券的条件', icon: 'none' })
       return
     }
     this.couponChoice = id || ''

@@ -83,6 +83,8 @@ module.exports = async (port) => {
   if (bk) add({ name: 'c-book-detail-full', page: 'pages/book-detail/book-detail', user: 'C4', q: { id: bk._id }, full: true })
   ;(Array.isArray(rlist) ? rlist : []).slice(0, 2).forEach((r, i) => add({ name: 'c-rental-' + i, page: 'pages/rental-detail/rental-detail', user: 'C1', q: { id: r._id }, full: true }))
   add({ name: 'c-vouchers', page: 'pages/vouchers/vouchers', user: 'C2', full: true })
+  // C1 手里有充值送的基础饮品券（限商品）和小食券（限分类）
+  add({ name: 'c-vouchers-scoped', page: 'pages/vouchers/vouchers', user: 'C1', full: true })
   add({ name: 'c-coupons', page: 'pages/coupons/coupons', user: 'C1', full: true })
   add({ name: 'c-member', page: 'pages/member/member', user: 'C1', full: true })
   add({ name: 'c-member-view', page: 'pages/member/member', user: 'C4' })
@@ -120,14 +122,23 @@ module.exports = async (port) => {
   const bn = (banners.banners || banners)[0]
   if (bn) A('banner-edit', 'banner-edit', { id: bn._id })
   A('coupons', 'coupons')
-  const cp = (coupons.coupons || coupons)[0]
+  const cpList = coupons.coupons || coupons
+  const cp = cpList[0]
   if (cp) A('coupon-edit', 'coupon-edit', { id: cp._id })
+  // 限分类的券、只在充值时送且限商品的券
+  const cpCat = cpList.find((c) => (c.categoryIds || []).length)
+  if (cpCat) A('coupon-edit-category', 'coupon-edit', { id: cpCat._id })
+  const cpGift = cpList.find((c) => c.giftOnly)
+  if (cpGift) A('coupon-edit-gift', 'coupon-edit', { id: cpGift._id })
   A('members', 'members')
   const m0 = Array.isArray(mlist) ? mlist[0] : null
   if (m0) A('member-detail', 'member-detail', { no: m0.memberNo })
   A('member-settings', 'member-settings')
   const pl = (ms.plans || [])[0]
   if (pl) A('plan-edit', 'plan-edit', { id: pl._id })
+  const plGifts = (ms.plans || []).find((p) => (p.gifts || []).length > 1)
+  if (plGifts) A('plan-edit-gifts', 'plan-edit', { id: plGifts._id })
+  A('plan-new', 'plan-edit')
   A('star-settings', 'star-settings')
   // 弹层
   add({ name: 'x-confirm-coupons', page: 'pages/confirm/confirm', user: 'C1', prep: [{ page: 'pages/menu/menu', act: addTwo }], act: async ({ frame }) => { await frame.click('text=代金券') } })

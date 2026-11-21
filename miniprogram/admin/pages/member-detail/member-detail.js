@@ -74,7 +74,7 @@ Page({
   recharge(e) {
     const plan = this.data.plans[Number(e.currentTarget.dataset.index)]
     if (!plan || this.data.busy) return
-    const gift = plan.memberDays ? '，送 ' + plan.memberDays + ' 天会员' : ''
+    const gift = (plan.memberDays ? '，送 ' + plan.memberDays + ' 天会员' : '') + (plan.giftText ? '，' + plan.giftText : '')
     wx.showModal({
       title: '确认收到钱了吗',
       content: '已经收到顾客 ¥' + fenToText(plan.price) + '（现金或收款码）。给会员 ' + this.no + ' 充 ¥' + fenToText(plan.price + plan.bonus) + gift + '。',
@@ -84,7 +84,9 @@ Page({
         this.setData({ busy: true })
         api.member('counterRecharge', { memberNo: this.no, planId: plan._id }).then((r) => {
           this.setData({ busy: false, showRecharge: false })
-          wx.showToast({ title: '已充值，余额 ¥' + fenToText(r.balance), icon: 'none', duration: 2500 })
+          const sent = (r.gifts || []).reduce((n, g) => n + g.count, 0)
+          if (r.giftError) wx.showModal({ title: '已充值，余额 ¥' + fenToText(r.balance), content: r.giftError, showCancel: false })
+          else wx.showToast({ title: '已充值，余额 ¥' + fenToText(r.balance) + (sent ? '，送了 ' + sent + ' 张券' : ''), icon: 'none', duration: 2500 })
           this.load()
         }).catch((err) => {
           this.setData({ busy: false })

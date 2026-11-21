@@ -1,4 +1,5 @@
 // 充值档位：充多少、送多少、送几天会员，能上下架、排序。咖啡（member_plans）和洗车（cw_plans）共用这套写法。
+// 咖啡的档位还能送代金券（gifts，见 coupons.js），由 member.js 整理好后通过 save 的 extra 存进来。
 const { BizError, isMissingCollection, cleanText } = require('./base')
 
 // 单笔最多 1 万元，最多 20 档，会员最多送 10 年
@@ -63,7 +64,8 @@ function createPlanStore(db, name) {
       return plan
     },
 
-    async save(plan) {
+    // extra：这家店自己的字段（咖啡的送券），已经检查过，原样存进去
+    async save(plan, extra) {
       const p = plan || {}
       const price = Number(p.price)
       if (!Number.isInteger(price) || price <= 0 || price > MAX_PLAN_PRICE) throw new BizError('充值金额请填 0.01 到 ' + yuan(MAX_PLAN_PRICE) + ' 元')
@@ -81,6 +83,7 @@ function createPlanStore(db, name) {
         updatedAt: db.serverDate()
       }
       if (p.sort !== undefined) data.sort = toSort(p.sort)
+      if (extra) Object.assign(data, extra)
       if (p._id) {
         const old = await find(p._id)
         if (!old) throw new BizError('这个档位不存在了')

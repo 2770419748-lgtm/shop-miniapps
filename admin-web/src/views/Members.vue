@@ -134,6 +134,7 @@
         <div>
           <div class="gold plan-title">{{ p.title }}</div>
           <div class="muted small">收 ¥{{ yuan(p.price) }}，到账 ¥{{ yuan(p.price + p.bonus) }}<span v-if="p.memberDays">，送 {{ p.memberDays }} 天会员</span></div>
+          <div class="gold small" v-if="p.giftText">{{ p.giftText }}</div>
         </div>
         <el-button size="small" type="primary" plain :loading="busy">充这档</el-button>
       </div>
@@ -280,7 +281,7 @@ async function saveRemark() {
 
 async function recharge(plan) {
   const no = detail.value.member.memberNo
-  const gift = plan.memberDays ? '，送 ' + plan.memberDays + ' 天会员' : ''
+  const gift = (plan.memberDays ? '，送 ' + plan.memberDays + ' 天会员' : '') + (plan.giftText ? '，' + plan.giftText : '')
   try {
     await ElMessageBox.confirm('已经收到顾客 ¥' + yuan(plan.price) + '（现金或收款码）。给会员 ' + no + ' 充 ¥' + yuan(plan.price + plan.bonus) + gift + '。', '确认收到钱了吗', { confirmButtonText: '确认充值', cancelButtonText: '再想想' })
   } catch (e) {
@@ -289,7 +290,9 @@ async function recharge(plan) {
   busy.value = true
   try {
     const res = await api.member('counterRecharge', { memberNo: no, planId: plan._id })
-    ElMessage.success('已充值，余额 ¥' + yuan(res.balance))
+    const sent = (res.gifts || []).map((g) => g.title + ' ' + g.count + ' 张').join('、')
+    ElMessage.success('已充值，余额 ¥' + yuan(res.balance) + (sent ? '，已送' + sent : ''))
+    if (res.giftError) ElMessage.warning(res.giftError)
     rechargeDialog.value = false
     refresh()
   } catch (e) {

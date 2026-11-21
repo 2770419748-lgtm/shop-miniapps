@@ -16,6 +16,7 @@
     </view>
     <view class="ticket-body">
       <view class="ticket-title">{{item.title}}</view>
+      <view class="gold small" wx:if="{{item.scope}}">{{item.scope}}</view>
       <view class="faint small">领取后 {{item.validDays}} 天内有效</view>
       <view class="faint small">{{item.left === null ? '' : '还剩 ' + item.left + ' 张 · '}}每人限 {{item.perUser}} 张{{item.mine ? '，你已领 ' + item.mine + ' 张' : ''}}</view>
     </view>
