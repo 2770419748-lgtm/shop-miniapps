@@ -28,7 +28,7 @@ const STATUSES = ['pending', 'reading', 'returned', 'cancelled']
 // 每位顾客同时最多借几本（含还没取书的）
 const MAX_ACTIVE = 3
 const ISBN_RE = /^(97[89]\d{10}|\d{9}[\dX])$/
-const MAX_COPIES = 99
+const MAX_COPIES = 999
 // 会员免费看：当天打烊前还，不计时、不收钱
 const MEMBER_RULE = { _id: 'member', name: '会员畅读', type: 'day', price: 0, graceMinutes: 0, freeCups: 0, freeProducts: [], freeMaxFee: 0 }
 

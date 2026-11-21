@@ -108,7 +108,12 @@ module.exports = async (port) => {
   A('books', 'books')
   A('books-view', 'books', null, { full: false })
   const b0 = (books.books || books)[0]
-  if (b0) A('book-edit', 'book-edit', { id: b0._id })
+  if (b0) {
+    // 一本书最多 999 册：按三位数看书目列表和加减框放不放得下
+    const full = await owner('book', 'getBookAdmin', { id: b0._id })
+    await owner('book', 'saveBook', { book: Object.assign({}, full, { copies: 999 }) })
+    A('book-edit', 'book-edit', { id: b0._id })
+  }
   A('rules', 'rules')
   const r0 = (rules.rules || rules)[0]
   if (r0) A('rule-edit', 'rule-edit', { id: r0._id })
