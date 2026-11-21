@@ -72,7 +72,7 @@ Page({
   },
 
   changeCopies(e) {
-    const copies = Math.max(1, Math.min(99, Number(this.data.form.copies) + Number(e.currentTarget.dataset.delta)))
+    const copies = Math.max(1, Math.min(999, Number(this.data.form.copies) + Number(e.currentTarget.dataset.delta)))
     this.setData({ 'form.copies': copies })
   },
 

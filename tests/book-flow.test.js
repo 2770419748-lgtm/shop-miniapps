@@ -123,6 +123,22 @@ test('册数不能改得比借出去的少；借出去的书不能删', async ()
   await ok(keeper.book('deleteBook', { id: added.id }))
 })
 
+test('一本书最多 999 册', async () => {
+  await fails(keeper.book('saveBook', { book: { title: '一千本', copies: 1000 } }))
+  const big = await ok(keeper.book('saveBook', { book: { title: '九百九十九本', copies: 999 } }))
+  const saved = await ok(keeper.book('getBookAdmin', { id: big.id }))
+  assert.equal(saved.copies, 999)
+  assert.equal(saved.available, 999)
+  await fails(keeper.book('saveBook', { book: Object.assign({}, saved, { copies: 1000 }) }))
+  const imported = await ok(keeper.book('importBooks', { books: [{ title: '导入 999 本', copies: 999 }, { title: '导入 1000 本', copies: 1000 }] }))
+  assert.equal(imported.created, 1)
+  assert.deepEqual(imported.skipped.map((s) => s.index), [1])
+  const books = await ok(keeper.book('adminListBooks'))
+  for (const b of books.filter((x) => x.title === '九百九十九本' || x.title === '导入 999 本')) {
+    await ok(keeper.book('deleteBook', { id: b._id }))
+  }
+})
+
 test('包天送咖啡：付款后发券，点单自动抵扣一杯，取消订单退券', async () => {
   // 把赠饮限定成拿铁和美式，每杯最多抵 25 元
   const rules = await ok(keeper.book('adminListRules'))
