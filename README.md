@@ -393,6 +393,8 @@ admin-web/              电脑网页后台（Vue 3 + Element Plus）
   src/                  源代码
   mock/                 本地预览用：真正的服务器代码 + 内存里的假数据
 tests/                  本地测试（不参与小程序打包）
+docs/UI规范.md          界面规范，改界面前先看
+tools/ui-check/         界面自动检查：小程序预览 + 网页后台截图，按规范查排版
 deploy/                 服务器运维脚本 jinshan-ops.sh 和自动部署说明
 .github/                GitHub Actions：部署到服务器、服务器运维
 ```
@@ -440,5 +442,6 @@ deploy/                 服务器运维脚本 jinshan-ops.sh 和自动部署说�
 - 分支：新改动从 `main` 拉分支、开 PR，合进 `main` 后 `server/` 或 `admin-web/dist/` 有变化就自动部署到测试版，试过再手动部署到正式版；小程序还是在开发者工具里上传。
 - 测试版：服务器 `config.json` 里 `env` 填 `test` 就是测试版，不收真钱（不读商户号）、订阅消息只发给店主和店员、扫码登录出体验版的码、网页后台顶上标「测试版」。小程序按版本连哪台服务器见 `miniprogram/utils/server.js`。
 - `npm test`：在内存数据库里把点单、借书计时、赠饮券、会员储值和余额付款、集星、外送和叫骑手、出餐通知和到期提醒、网页登录、在线支付和退款，洗车预约（防超约、上门费、取消规则、技师接单）、洗车储值和次卡（防重复扣）、送咖啡券、两个小程序认同一个人等流程跑一遍，也测数据库、微信接口（含订阅消息）、微信支付 v3 签名和解密、微信同城配送的加密签名、整个 HTTP 服务器。需要 Node 22.13 以上，不用安装依赖。
+- 界面：改界面前先看 [docs/UI规范.md](docs/UI规范.md)（控件尺寸、横向滑动栏写法、省略号、安全区、微信组件的坑）。`npm test` 里带界面写法的检查；`npm run ui:check` 把小程序每一页（390 / 320 宽）和网页后台每一页（电脑 / 手机宽）截图查排版，报告在 `tools/ui-check/out/report.md`（要先 `npm i --no-save playwright && npx playwright install chromium`）。GitHub 上每次推送和 PR 都会自动跑这两项（Actions「检查」）。
 - 本地跑服务器：`cd server`，复制 `config.example.json` 为 `config.json`，`npm start`，打开 http://127.0.0.1:3000/admin/ 。
 - 网页后台：`cd admin-web && npm install`，`npm run build` 打包到 `dist`；`npm run mock` 用假数据预览（打开 http://localhost:8787 ，账号 boss，密码 jinshan2026，扫码登录页下面有「预览模式：模拟手机确认」）；`npm run dev` 开发时配合 `npm run mock` 一起用。

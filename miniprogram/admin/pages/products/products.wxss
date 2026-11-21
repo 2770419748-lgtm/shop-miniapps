@@ -1,10 +1,8 @@
-.cat-bar {
-  display: flex;
-  white-space: nowrap;
-  padding: 20rpx 24rpx 4rpx;
+.chip-bar {
+  margin-top: 8rpx;
 }
-.cat-bar .chip {
-  flex-shrink: 0;
+.chip-bar + .page {
+  padding-top: 8rpx;
 }
 .product {
   display: flex;

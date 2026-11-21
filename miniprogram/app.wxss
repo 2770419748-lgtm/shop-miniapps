@@ -78,11 +78,20 @@ view, text, input, textarea, button, scroll-view {
 .btn-gold.disabled, .btn-ghost.disabled { opacity: 0.4; }
 .btn-hover { opacity: 0.75; }
 
+/* 小状态标签（可借 2 本、已收款…）：固定高度 + line-height 居中，不换行 */
 .tag {
   display: inline-block;
-  padding: 2rpx 14rpx;
+  height: 36rpx;
+  line-height: 34rpx;
+  padding: 0 14rpx;
+  border: 1rpx solid transparent;
   border-radius: 8rpx;
   font-size: 22rpx;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
   background: var(--card-2);
   color: var(--text-2);
 }
@@ -192,19 +201,79 @@ view, text, input, textarea, button, scroll-view {
   display: flex;
   flex-wrap: wrap;
 }
+/* 选项标签。高度写死、靠 line-height 居中（UI 规范 2.2）：不要用上下 padding 撑高度，
+   放进 flex 容器时会被拉高，文字就贴在上半截 */
 .chip {
-  padding: 12rpx 28rpx;
+  height: 64rpx;
+  line-height: 62rpx;
+  padding: 0 28rpx;
   margin: 0 16rpx 16rpx 0;
   border-radius: 12rpx;
   border: 1rpx solid var(--line);
   background: var(--card-2);
   color: var(--text);
   font-size: 26rpx;
+  white-space: nowrap;
+  text-align: center;
 }
 .chip.on {
   border-color: var(--gold);
   background: var(--gold-soft);
   color: var(--gold);
+}
+.chip.mini {
+  height: 52rpx;
+  line-height: 50rpx;
+  padding: 0 20rpx;
+  font-size: 24rpx;
+}
+
+/* 横向滑动的分类栏（UI 规范 2.3），写法固定：
+   <view class="chip-bar {{fade ? 'fade' : ''}}">
+     <scroll-view class="chip-scroll" scroll-x enhanced show-scrollbar="{{false}}" bindscroll="onBarScroll">
+       <view class="chip-track"><view class="chip">…</view></view>
+     </scroll-view>
+   </view>
+   · scroll-view 不加 enable-flex（真机上会把胶囊撑高、文字贴顶，2026-11 书架页就是这样）
+   · 放在 .page 里时加 bleed，滑动区通到屏幕两边，不会在页边距处被切一刀
+   · fade 由 utils/chip-bar.js 算：内容超出屏幕且没滑到最右时，右边渐隐提示还能滑 */
+.chip-bar {
+  position: relative;
+}
+.chip-bar.bleed {
+  margin-left: -24rpx;
+  margin-right: -24rpx;
+}
+.chip-scroll {
+  width: 100%;
+  height: 88rpx;
+  white-space: nowrap;
+}
+.chip-track {
+  display: inline-flex;
+  align-items: center;
+  height: 88rpx;
+  padding: 0 24rpx;
+}
+.chip-track .chip {
+  flex-shrink: 0;
+  height: 60rpx;
+  line-height: 58rpx;
+  margin: 0 16rpx 0 0;
+  border-radius: 30rpx;
+}
+.chip-track .chip:last-child {
+  margin-right: 0;
+}
+.chip-bar.fade::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 80rpx;
+  background: linear-gradient(to right, rgba(11, 11, 11, 0), var(--bg));
+  pointer-events: none;
 }
 
 .safe-bottom { height: calc(140rpx + env(safe-area-inset-bottom)); }

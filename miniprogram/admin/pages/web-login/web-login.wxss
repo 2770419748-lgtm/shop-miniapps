@@ -8,8 +8,10 @@
 }
 .badge {
   display: inline-block;
+  height: 48rpx;
+  line-height: 46rpx;
   font-size: 24rpx;
-  padding: 6rpx 20rpx;
+  padding: 0 20rpx;
   border: 1rpx solid var(--gold);
   border-radius: 999rpx;
   margin-bottom: 20rpx;

@@ -1,0 +1,8 @@
+[
+  {
+    "page": "*",
+    "rule": "wrap",
+    "text": "黑镜车体护理车房",
+    "why": "网页后台侧边栏的洗车店名 8 个字一行放不下，故意平均分成两行（黑镜车体 / 护理车房），见 admin-web/src/App.vue 的 .brand-name.long"
+  }
+]

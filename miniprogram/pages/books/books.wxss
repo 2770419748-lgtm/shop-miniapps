@@ -22,13 +22,9 @@
   font-size: 24rpx;
   margin-top: 8rpx;
 }
-.cat-bar {
-  display: flex;
-  white-space: nowrap;
-  margin-bottom: 8rpx;
-}
-.cat-bar .chip {
-  flex-shrink: 0;
+.chip-bar {
+  margin-top: -12rpx;
+  margin-bottom: 12rpx;
 }
 /* 一行三本；最后一行不满时也从左排，不会两本分到两边 */
 .grid {

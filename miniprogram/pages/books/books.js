@@ -1,4 +1,5 @@
 const api = require('../../utils/api')
+const chipBar = require('../../utils/chip-bar')
 
 Page({
   data: {
@@ -6,6 +7,7 @@ Page({
     rules: [],
     categories: [],
     current: 'all',
+    barFade: false, // 分类栏右侧渐隐，提示还能往右滑
     memberFree: [], // 会员免费看的分类
     memberText: '',
     list: [],
@@ -29,7 +31,7 @@ Page({
       const free = memberFree || []
       this.books = books.map((b) => Object.assign({ memberFree: free.indexOf(b.category) !== -1 }, b))
       const current = this.data.current === 'all' || categories.indexOf(this.data.current) !== -1 ? this.data.current : 'all'
-      this.setData({ rules, categories, current, memberFree: free, memberText: free.join('、'), loading: false })
+      this.setData({ rules, categories, current, barFade: chipBar.overflows(['全部'].concat(categories)), memberFree: free, memberText: free.join('、'), loading: false })
       this.filter()
     }).catch((err) => {
       this.setData({ loading: false })
@@ -45,6 +47,10 @@ Page({
   filter() {
     const { current } = this.data
     this.setData({ list: current === 'all' ? this.books : this.books.filter((b) => b.category === current) })
+  },
+
+  onBarScroll(e) {
+    chipBar.onScroll(this, e)
   },
 
   pickCat(e) {

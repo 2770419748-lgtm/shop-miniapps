@@ -8,8 +8,8 @@
           <div class="brand switchable" title="切换门店">
             <img :src="logoOf(shop.key)" alt="" />
             <div class="brand-text">
-              <div class="brand-name" :class="{ mono: shop.key === 'carwash' }">{{ shop.name }}</div>
-              <div class="brand-sub">管理后台</div>
+              <div class="brand-name" :class="{ mono: shop.key === 'carwash', long: isLong(shop.name) }" :title="shop.name">{{ shop.name }}</div>
+              <div v-if="!isLong(shop.name)" class="brand-sub">管理后台</div>
             </div>
             <svg class="brand-caret" :class="{ open: shopsOpen }" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </div>
@@ -24,8 +24,8 @@
       <div v-else class="brand">
         <img :src="logoOf(shop.key)" alt="" />
         <div class="brand-text">
-          <div class="brand-name" :class="{ mono: shop.key === 'carwash' }">{{ shop.name }}</div>
-          <div class="brand-sub">管理后台</div>
+          <div class="brand-name" :class="{ mono: shop.key === 'carwash', long: isLong(shop.name) }" :title="shop.name">{{ shop.name }}</div>
+          <div v-if="!isLong(shop.name)" class="brand-sub">管理后台</div>
         </div>
       </div>
       <el-menu :default-active="route.path" router class="menu">
@@ -82,6 +82,11 @@ watch(() => route.path, () => {
 
 const shopsOpen = ref(false)
 
+// 侧边栏一行放得下 6 个字的店名
+function isLong(name) {
+  return Array.from(name || '').length > 6
+}
+
 function logoOf(key) {
   return key === 'carwash' ? carwashLogo : logo
 }
@@ -131,6 +136,12 @@ async function logout() {
   font-size: 16px;
 }
 .brand-name.mono { color: #fff; }
+/* 店名超过 6 个字放不下一行：去掉「管理后台」，店名平均分两行（黑镜车体 / 护理车房），不会断在词中间 */
+.brand-name.long {
+  font-size: 15px;
+  line-height: 1.3;
+  text-wrap: balance;
+}
 .brand-text { flex: 1; min-width: 0; }
 .brand.switchable {
   cursor: pointer;

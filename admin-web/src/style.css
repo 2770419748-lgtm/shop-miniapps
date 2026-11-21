@@ -107,6 +107,8 @@ html.dark .el-radio-button {
   .el-card .el-form:not(.el-form--inline) .el-form-item__label { width: auto !important; justify-content: flex-start; }
   .el-card .el-form:not(.el-form--inline) .el-form-item__content { line-height: 1.7; }
   .el-message-box { max-width: 92vw; }
+  /* 抽屉在电脑上 520px 宽，手机上铺满，不然左边会超出屏幕 */
+  .el-drawer.rtl, .el-drawer.ltr { width: 100vw !important; }
 }
 /* 左上角点头像弹出的门店列表（弹层挂在 body 上，所以样式写在这里） */
 .el-popover.shop-pop { padding: 6px; border-radius: 12px; }

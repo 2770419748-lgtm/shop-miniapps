@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; padding: 0; background: #444; font-family: "PingFang SC", "WenQuanYi Zen Hei", sans-serif; }
+  #phone { position: relative; overflow: hidden; background: #000; }
+  #status { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; font-size: 15px; font-weight: 600; box-sizing: border-box; }
+  #nav { position: absolute; left: 0; right: 0; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 500; }
+  #nav .back { position: absolute; left: 10px; font-size: 26px; line-height: 1; }
+  #capsule { position: absolute; right: 7px; width: 87px; height: 32px; border-radius: 16px; box-sizing: border-box; border: 0.5px solid rgba(255,255,255,0.25); background: rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: space-around; font-size: 14px; }
+  #frame { position: absolute; left: 0; border: 0; display: block; }
+  #tabbar { position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box; display: flex; border-top: 0.5px solid; }
+  #tabbar .tab { flex: 1; display: flex; flex-direction: column; align-items: center; padding-top: 5px; font-size: 10px; }
+  #tabbar img { width: 24px; height: 24px; margin-bottom: 2px; }
+  #home-ind { position: absolute; bottom: 8px; left: 50%; width: 134px; height: 5px; margin-left: -67px; border-radius: 3px; background: #fff; opacity: 0.9; z-index: 999; pointer-events: none; }
+  #overlay { position: absolute; left: 0; right: 0; top: 0; bottom: 0; pointer-events: none; z-index: 1000; }
+  .toast { position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%); max-width: 70%; background: rgba(17,17,17,0.85); color: #fff; padding: 12px 18px; border-radius: 8px; font-size: 15px; text-align: center; }
+  .modal-mask { position: absolute; inset: 0; background: rgba(0,0,0,0.6); pointer-events: auto; display: flex; align-items: center; justify-content: center; }
+  .modal { width: 80%; background: #2c2c2c; color: #fff; border-radius: 12px; overflow: hidden; text-align: center; }
+  .modal .t { font-weight: 600; font-size: 17px; padding: 24px 20px 8px; }
+  .modal .c { color: rgba(255,255,255,0.6); font-size: 15px; padding: 0 20px 24px; white-space: pre-line; }
+  .modal .b { display: flex; border-top: 0.5px solid #444; }
+  .modal .b div { flex: 1; height: 50px; line-height: 50px; font-size: 17px; }
+  .modal .b div + div { border-left: 0.5px solid #444; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: #2c2c2c; color: #fff; border-radius: 12px 12px 0 0; pointer-events: auto; }
+  .sheet div { height: 56px; line-height: 56px; text-align: center; border-bottom: 0.5px solid #444; font-size: 17px; }
+</style>
+</head>
+<body>
+<div id="phone">
+  <div id="status"><span>9:41</span><span>●●● ▮</span></div>
+  <div id="nav"><span class="back" style="display:none">‹</span><span id="title"></span><div id="capsule"><span>•••</span><span>◎</span></div></div>
+  <iframe id="frame"></iframe>
+  <div id="tabbar" style="display:none"></div>
+  <div id="home-ind"></div>
+  <div id="overlay"></div>
+</div>
+<script src="/h/runtime.js"></script>
+</body>
+</html>
