@@ -58,7 +58,7 @@
           <el-autocomplete v-model="form.category" :fetch-suggestions="suggestCategory" maxlength="10" placeholder="比如 文学、绘本" />
         </el-form-item>
         <el-form-item label="册数" required>
-          <el-input-number v-model="form.copies" :min="Math.max(1, form.out || 0)" :max="99" />
+          <el-input-number v-model="form.copies" :min="Math.max(1, form.out || 0)" :max="999" />
           <span class="muted small" v-if="form.out" style="margin-left: 8px">借出 {{ form.out }} 本</span>
         </el-form-item>
         <el-form-item label="简介"><el-input v-model="form.desc" type="textarea" :rows="3" maxlength="300" show-word-limit /></el-form-item>
