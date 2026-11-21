@@ -1,0 +1,58 @@
+# 每次推送和每个 PR 自动检查：
+#   单元测试：npm test（含 tests/ui-rules.test.js 的界面写法检查）
+#   界面检查：npm run ui:check，把小程序和网页后台每一页截图查排版（规则见 docs/UI规范.md）
+# 截图和报告在这次运行的 Artifacts「ui-check」里，打开 report.md 看。
+name: 检查
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: 单元测试
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+
+  ui:
+    name: 界面检查
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: admin-web/package-lock.json
+      - name: 装网页后台的依赖
+        working-directory: admin-web
+        run: npm ci --no-audit --no-fund
+      - name: 装浏览器
+        run: |
+          npm i --no-save --no-audit --no-fund playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - name: 截图检查
+        run: npm run ui:check
+      - name: 上传截图和报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-check
+          path: tools/ui-check/out
+          retention-days: 14

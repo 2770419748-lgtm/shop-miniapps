@@ -1,5 +1,6 @@
 const api = require('../../../utils/api')
 const guard = require('../../../utils/guard')
+const chipBar = require('../../../utils/chip-bar')
 
 Page({
   data: {
@@ -8,6 +9,7 @@ Page({
     loading: true,
     categories: [],
     current: 'all',
+    barFade: false,
     all: [],
     list: []
   },
@@ -30,7 +32,7 @@ Page({
       categories.forEach((c) => { names[c._id] = c.name })
       const all = products.map((p) => Object.assign({}, p, { categoryName: names[p.categoryId] || '未分类' }))
       const current = this.data.current === 'all' || names[this.data.current] ? this.data.current : 'all'
-      this.setData({ categories, all, current, loading: false })
+      this.setData({ categories, all, current, barFade: chipBar.overflows(['全部'].concat(categories.map((c) => c.name))), loading: false })
       this.filter()
     }).catch((err) => {
       this.setData({ loading: false })
@@ -41,6 +43,10 @@ Page({
   filter() {
     const { all, current } = this.data
     this.setData({ list: current === 'all' ? all : all.filter((p) => p.categoryId === current) })
+  },
+
+  onBarScroll(e) {
+    chipBar.onScroll(this, e)
   },
 
   pickCat(e) {

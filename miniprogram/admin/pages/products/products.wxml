@@ -1,10 +1,14 @@
 <wxs src="../../../utils/filters.wxs" module="f" />
 
 <view wx:if="{{ready}}">
-  <scroll-view class="cat-bar" scroll-x enable-flex>
-    <view class="chip {{current === 'all' ? 'on' : ''}}" data-id="all" bindtap="pickCat">全部</view>
-    <view wx:for="{{categories}}" wx:key="_id" class="chip {{current === item._id ? 'on' : ''}}" data-id="{{item._id}}" bindtap="pickCat">{{item.name}}</view>
-  </scroll-view>
+  <view class="chip-bar {{barFade ? 'fade' : ''}}">
+    <scroll-view class="chip-scroll" scroll-x enhanced show-scrollbar="{{false}}" bindscroll="onBarScroll">
+      <view class="chip-track">
+        <view class="chip {{current === 'all' ? 'on' : ''}}" data-id="all" bindtap="pickCat">全部</view>
+        <view wx:for="{{categories}}" wx:key="_id" class="chip {{current === item._id ? 'on' : ''}}" data-id="{{item._id}}" bindtap="pickCat">{{item.name}}</view>
+      </view>
+    </scroll-view>
+  </view>
 
   <view class="page">
     <view wx:for="{{list}}" wx:key="_id" class="card product {{item.onShelf ? '' : 'off'}}" data-id="{{item._id}}" bindtap="edit">

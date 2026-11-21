@@ -7,7 +7,7 @@
     <el-table :data="categories" v-loading="loading" empty-text="还没有分类">
       <el-table-column label="顺序" width="70" type="index" />
       <el-table-column label="名称">
-        <template #default="{ row }">{{ row.name }} <span class="muted small">{{ counts[row._id] || 0 }} 个商品</span></template>
+        <template #default="{ row }"><div class="name-cell"><span>{{ row.name }}</span><span class="muted small">{{ counts[row._id] || 0 }} 个商品</span></div></template>
       </el-table-column>
       <el-table-column label="操作" width="280">
         <template #default="{ row, $index }">
@@ -95,6 +95,8 @@ onMounted(load)
 </script>
 
 <style scoped>
-.small { font-size: 12px; margin-left: 8px; }
+.small { font-size: 12px; white-space: nowrap; }
+/* 名称和商品数：放不下时数量整体换到下一行、靠左，不拆成「3 / 个商品」 */
+.name-cell { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
 .tip { margin-top: 12px; }
 </style>

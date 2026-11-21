@@ -30,7 +30,7 @@
       <el-table-column label="规格" min-width="160">
         <template #default="{ row }">
           <div v-for="g in row.specs" :key="g.name" class="small">
-            {{ g.name }}：<span v-for="(o, i) in g.options" :key="o.name">{{ i ? '、' : '' }}{{ o.name }}<span v-if="o.price" class="muted">+{{ yuan(o.price) }}</span></span>
+            {{ g.name }}：<span v-for="(o, i) in g.options" :key="o.name" class="opt">{{ i ? '、' : '' }}{{ o.name }}<span v-if="o.price" class="muted">+{{ yuan(o.price) }}</span></span>
           </div>
         </template>
       </el-table-column>
@@ -249,6 +249,8 @@ onMounted(load)
   height: 52px;
 }
 .small { font-size: 12px; }
+/* 一个选项（「、无糖」）不拆开，换行只发生在选项之间 */
+.opt { white-space: nowrap; }
 .specs { width: 100%; }
 .spec {
   border: 1px solid var(--el-border-color);

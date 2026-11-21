@@ -17,10 +17,14 @@
     <view class="rules-member" wx:if="{{memberText}}" bindtap="goMember">会员免费看「{{memberText}}」类的书，不计时 <text class="gold">了解会员 ›</text></view>
   </view>
 
-  <scroll-view class="cat-bar" scroll-x enable-flex wx:if="{{categories.length > 1}}">
-    <view class="chip {{current === 'all' ? 'on' : ''}}" data-cat="all" bindtap="pickCat">全部</view>
-    <view wx:for="{{categories}}" wx:key="*this" class="chip {{current === item ? 'on' : ''}}" data-cat="{{item}}" bindtap="pickCat">{{item}}</view>
-  </scroll-view>
+  <view class="chip-bar bleed {{barFade ? 'fade' : ''}}" wx:if="{{categories.length > 1}}">
+    <scroll-view class="chip-scroll" scroll-x enhanced show-scrollbar="{{false}}" bindscroll="onBarScroll">
+      <view class="chip-track">
+        <view class="chip {{current === 'all' ? 'on' : ''}}" data-cat="all" bindtap="pickCat">全部</view>
+        <view wx:for="{{categories}}" wx:key="*this" class="chip {{current === item ? 'on' : ''}}" data-cat="{{item}}" bindtap="pickCat">{{item}}</view>
+      </view>
+    </scroll-view>
+  </view>
 
   <view class="grid">
     <view wx:for="{{list}}" wx:key="_id" class="book" data-id="{{item._id}}" bindtap="open" hover-class="btn-hover">

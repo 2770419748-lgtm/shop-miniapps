@@ -83,7 +83,6 @@
 }
 .chip.mini {
   margin: 0 12rpx 0 0;
-  padding: 8rpx 20rpx;
 }
 .wrap {
   flex-wrap: wrap;
